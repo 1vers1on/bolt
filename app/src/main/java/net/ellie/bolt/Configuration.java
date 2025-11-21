@@ -3,7 +3,8 @@ package net.ellie.bolt;
 import net.ellie.bolt.gui.colormap.Colormaps.Colormap;
 
 public class Configuration {
-    private static Colormap colormap = Colormap.VIRIDIS;
+    static Colormap colormap = Colormap.VIRIDIS;
+    static String inputDevice = "Audio";
 
     public static Colormap getColormap() {
         return colormap;

@@ -18,7 +18,7 @@ void throwPaException(JNIEnv* env, PaError* err) {
     }
 }
 
-JNIEXPORT jint JNICALL Java_net_ellie_portaudiojni_PortAudioJNI_initialize(JNIEnv *env, jobject obj) {
+JNIEXPORT jint JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_initialize(JNIEnv *env, jobject obj) {
     PaError err = Pa_Initialize();
     if (err != paNoError) {
         throwPaException(env, &err);
@@ -27,14 +27,14 @@ JNIEXPORT jint JNICALL Java_net_ellie_portaudiojni_PortAudioJNI_initialize(JNIEn
     return (jint)err;
 }
 
-JNIEXPORT void JNICALL Java_net_ellie_portaudiojni_PortAudioJNI_terminate(JNIEnv *env, jobject obj) {
+JNIEXPORT void JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_terminate(JNIEnv *env, jobject obj) {
     PaError err = Pa_Terminate();
     if (err != paNoError) {
         throwPaException(env, &err);
     }
 }
 
-JNIEXPORT jobject JNICALL Java_net_ellie_portaudiojni_PortAudioJNI_enumerateDevices(JNIEnv *env, jobject obj) {
+JNIEXPORT jobject JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_enumerateDevices(JNIEnv *env, jobject obj) {
     jclass arrayListClass = (*env)->FindClass(env, "java/util/ArrayList");
     jmethodID arrayListInit = (*env)->GetMethodID(env, arrayListClass, "<init>", "()V");
     jobject deviceList = (*env)->NewObject(env, arrayListClass, arrayListInit);
@@ -68,7 +68,7 @@ JNIEXPORT jobject JNICALL Java_net_ellie_portaudiojni_PortAudioJNI_enumerateDevi
     return deviceList;
 }
 
-JNIEXPORT jlong JNICALL Java_net_ellie_portaudiojni_PortAudioJNI_nativeOpenInputStream(
+JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeOpenInputStream(
     JNIEnv *env, jclass cls, jint deviceIndex, jint channels, jdouble sampleRate, jlong framesPerBuffer) {
 
     PaStream* stream;
@@ -90,7 +90,7 @@ JNIEXPORT jlong JNICALL Java_net_ellie_portaudiojni_PortAudioJNI_nativeOpenInput
     return (jlong)stream;
 }
 
-JNIEXPORT void JNICALL Java_net_ellie_portaudiojni_PortAudioJNI_nativeStartStream(
+JNIEXPORT void JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeStartStream(
     JNIEnv *env, jclass cls, jlong streamPtr) {
 
     PaStream* stream = (PaStream*)streamPtr;
@@ -100,7 +100,7 @@ JNIEXPORT void JNICALL Java_net_ellie_portaudiojni_PortAudioJNI_nativeStartStrea
     }
 }
 
-JNIEXPORT void JNICALL Java_net_ellie_portaudiojni_PortAudioJNI_nativeStopStream(
+JNIEXPORT void JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeStopStream(
     JNIEnv *env, jclass cls, jlong streamPtr) {
 
     PaStream* stream = (PaStream*)streamPtr;
@@ -110,7 +110,7 @@ JNIEXPORT void JNICALL Java_net_ellie_portaudiojni_PortAudioJNI_nativeStopStream
     }
 }
 
-JNIEXPORT void JNICALL Java_net_ellie_portaudiojni_PortAudioJNI_nativeCloseStream(
+JNIEXPORT void JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeCloseStream(
     JNIEnv *env, jclass cls, jlong streamPtr) {
 
     PaStream* stream = (PaStream*)streamPtr;
@@ -120,7 +120,7 @@ JNIEXPORT void JNICALL Java_net_ellie_portaudiojni_PortAudioJNI_nativeCloseStrea
     }
 }
 
-JNIEXPORT jlong JNICALL Java_net_ellie_portaudiojni_PortAudioJNI_nativeReadStream(
+JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeReadStream(
     JNIEnv *env, jclass cls, jlong streamPtr, jbyteArray buffer, jlong framesRequested) {
 
     PaStream* stream = (PaStream*)streamPtr;
@@ -176,7 +176,7 @@ JNIEXPORT jlong JNICALL Java_net_ellie_portaudiojni_PortAudioJNI_nativeReadStrea
     return (jlong)(framesRequested * bytesPerFrame);
 }
 
-JNIEXPORT jlong JNICALL Java_net_ellie_portaudiojni_PortAudioJNI_nativeReadStreamOffset
+JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeReadStreamOffset
   (JNIEnv *env, jclass cls, jlong streamPtr, jbyteArray buffer, jint offset, jlong bytesToRead) {
 
     PaStream* stream = (PaStream*)streamPtr;

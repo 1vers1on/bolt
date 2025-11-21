@@ -75,8 +75,11 @@ tasks.named("generateJniHeaders") {
     finalizedBy(":native-jni:linkRelease")
 }
 
-tasks.named("run") {
+tasks.named<JavaExec>("run") {
     dependsOn(":native-jni:linkRelease")
+    val jniProject = project(":native-jni")
+    val libDir = jniProject.layout.buildDirectory.dir("lib/main/release")
+    systemProperty("java.library.path", libDir.get().asFile.absolutePath)
 }
 
 tasks.jar {

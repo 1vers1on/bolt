@@ -9,6 +9,7 @@ import org.lwjgl.opengl.GL11;
 
 import imgui.gl3.ImGuiImplGl3;
 import imgui.glfw.ImGuiImplGlfw;
+import net.ellie.bolt.contexts.PortAudioContext;
 import net.ellie.bolt.gui.FrequencyWidget;
 import net.ellie.bolt.gui.Waterfall;
 import imgui.ImFontAtlas;
@@ -117,6 +118,9 @@ public class Bolt {
         waterfall = new Waterfall(1280, 720);
         waterfall.initialize();
         frequencyWidget.initialize();
+
+        // initialize portaudio
+        PortAudioContext.getInstance().getPortAudioJNI().initialize();
     }
 
     public void loop() {
@@ -197,8 +201,34 @@ public class Bolt {
             ImGui.setWindowSize(250, ImGui.getMainViewport().getSizeY() - parent_size.y);
 
             if (ImGui.collapsingHeader("Input Source", ImGuiTreeNodeFlags.DefaultOpen)) {
-                ImGui.text("Input device selection would go here.");
+                if (ImGui.beginCombo("##", Configuration.inputDevice)) {
+                    if (ImGui.selectable("Audio", Configuration.inputDevice.equals("Audio"))) {
+                        Configuration.inputDevice = "Audio";
+                    }
+                    if (Configuration.inputDevice.equals("Audio")) {
+                        ImGui.setItemDefaultFocus();
+                    }
 
+                    if (ImGui.selectable("File", Configuration.inputDevice.equals("File"))) {
+                        Configuration.inputDevice = "File";
+                    }
+                    if (Configuration.inputDevice.equals("File")) {
+                        ImGui.setItemDefaultFocus();
+                    }
+
+                    if (ImGui.selectable("RTL-SDR", Configuration.inputDevice.equals("RTL-SDR"))) {
+                        Configuration.inputDevice = "RTL-SDR";
+                    }
+                    if (Configuration.inputDevice.equals("RTL-SDR")) {
+                        ImGui.setItemDefaultFocus();
+                    }
+
+                    ImGui.endCombo();
+                }
+
+                if (Configuration.inputDevice.equals("Audio")) {
+                    
+                }
             }
             
             ImGui.end();
