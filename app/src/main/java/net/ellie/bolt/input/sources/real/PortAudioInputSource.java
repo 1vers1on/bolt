@@ -5,10 +5,10 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import net.ellie.bolt.contexts.PortAudioContext;
-import net.ellie.bolt.input.IRealInputSource;
+import net.ellie.bolt.input.IInputSource;
 import net.ellie.bolt.jni.portaudio.AudioInputStream;
 
-public class PortAudioInputSource implements IRealInputSource, AutoCloseable {
+public class PortAudioInputSource implements IInputSource, AutoCloseable {
     private volatile boolean running = true;
     private AudioInputStream audioInputStream;
     private final int sampleRate;
@@ -64,6 +64,11 @@ public class PortAudioInputSource implements IRealInputSource, AutoCloseable {
     @Override
     public boolean isRunning() {
         return running;
+    }
+
+    @Override
+    public boolean isComplex() {
+        return false;
     }
 
     @Override

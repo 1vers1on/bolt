@@ -2,7 +2,7 @@ package net.ellie.bolt.input;
 
 import java.io.IOException;
 
-public interface IRealInputSource {
+public interface IInputSource {
     /**
      * Read samples from the source into the buffer.
      * @param buffer Destination float array.
@@ -20,4 +20,6 @@ public interface IRealInputSource {
     String getName();
 
     boolean isRunning();
+
+    boolean isComplex();
 }
