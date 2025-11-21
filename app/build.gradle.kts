@@ -4,7 +4,7 @@ plugins {
 }
 
 val lwjglVersion = "3.3.4"
-val imguiVersion = "1.86.4"
+val imguiVersion = "1.90.0"
 val lwjglNatives = "natives-linux"
 
 dependencies {
@@ -33,4 +33,60 @@ java {
 
 application {
     mainClass = "net.ellie.bolt.Main"
+}
+
+tasks.register<Exec>("generateJniHeaders") {
+    project.evaluationDependsOn(":native-jni")
+
+    val jniProjectDir = project(":native-jni").projectDir
+    val outputDir = file("$jniProjectDir/src/main/c/include")
+    val nativeSourceDir = file("src/main/java/net/ellie/bolt/jni")
+    val nativeSourceFiles = fileTree(nativeSourceDir) {
+        include("**/*.java")
+    }
+
+    dependsOn(tasks.classes)
+    val classesDir = sourceSets.main.get().output.classesDirs.singleFile
+    
+    inputs.files(nativeSourceFiles)
+    outputs.dir(outputDir)
+
+    val sourceFiles = nativeSourceFiles.files.map { it.absolutePath }
+
+    val javaCompiler = javaToolchains.compilerFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    val javacPath = javaCompiler.get().executablePath.asFile.absolutePath
+
+    commandLine(
+        javacPath,
+        "-h", outputDir.absolutePath,
+        "-d", classesDir.absolutePath,
+        "-cp", sourceSets.main.get().compileClasspath.asPath + ":" + classesDir.absolutePath,
+        *sourceFiles.toTypedArray()
+    )
+}
+
+tasks.named("assemble") {
+    dependsOn(":native-jni:linkRelease")
+}
+
+tasks.named("generateJniHeaders") {
+    finalizedBy(":native-jni:linkRelease")
+}
+
+tasks.named("run") {
+    dependsOn(":native-jni:linkRelease")
+}
+
+tasks.jar {
+    dependsOn(":native-jni:linkRelease")
+    manifest {
+        attributes(
+            "Main-Class" to "net.ellie.bolt.Main"
+        )
+    }
+    
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
 }

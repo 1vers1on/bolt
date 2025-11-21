@@ -6,3 +6,8 @@ build
 
 .vscode
 .idea
+.cache
+
+.DS_Store
+thumbs.db
+

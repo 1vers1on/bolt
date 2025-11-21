@@ -11,4 +11,4 @@ plugins {
 }
 
 rootProject.name = "bolt"
-include("app")
+include("app", "native-jni")
