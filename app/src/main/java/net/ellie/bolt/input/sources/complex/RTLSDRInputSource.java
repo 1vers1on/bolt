@@ -49,7 +49,7 @@ public class RTLSDRInputSource implements CloseableInputSource {
 
     @Override
     public String getName() {
-        return rtlSdr.getDeviceName(deviceIndex);
+        return RTLSDR.getDeviceName(deviceIndex);
     }
 
     @Override
