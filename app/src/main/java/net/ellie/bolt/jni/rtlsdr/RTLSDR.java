@@ -50,7 +50,7 @@ public class RTLSDR {
     private native int nSetBiasTeeGpio(long device, int gpio, boolean on);
 
     private native int nResetBuffer(long device);
-    private native int nReadSync(long device, byte[] buffer, int length);
+    private native int nReadSync(long device, byte[] buffer, int length, int[] n_read);
 
     public int open(int deviceIndex) {
         nativeHandle = nOpen(deviceIndex);
@@ -232,7 +232,20 @@ public class RTLSDR {
     }
 
     public int readSync(byte[] buffer, int length) {
-        return nReadSync(nativeHandle, buffer, length);
+        int[] nRead = new int[1];
+        int result = nReadSync(nativeHandle, buffer, length, nRead);
+        if (result < 0) {
+            throw new RuntimeException("Failed to read from RTL-SDR - " + result);
+        }
+        return nRead[0];
+    }
+
+    public int readSync(byte[] buffer, int length, int[] nRead) {
+        int result = nReadSync(nativeHandle, buffer, length, nRead);
+        if (result < 0) {
+            throw new RuntimeException("Failed to read from RTL-SDR - " + result);
+        }
+        return nRead[0];
     }
 
     public static enum RTLTuner {

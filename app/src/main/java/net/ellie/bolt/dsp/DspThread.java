@@ -19,10 +19,11 @@ public class DspThread implements Runnable {
     private IWindow windowFunction;
     private CircularFloatBuffer waterfallOutputBuffer;
 
-    public DspThread(CircularFloatBuffer inputBuffer) {
+    public DspThread(CircularFloatBuffer inputBuffer, IWindow windowFunction) {
         this.inputBuffer = inputBuffer;
         this.fft = new DoubleFFT_1D(Configuration.getFftSize());
         this.waterfallOutputBuffer = new CircularFloatBuffer(Configuration.getFftSize());
+        this.windowFunction = windowFunction;
     }
 
     public void start() {
@@ -54,10 +55,15 @@ public class DspThread implements Runnable {
 
             double[] magnitude = new double[n];
             double gain = windowFunction.getGainCompensation(n);
+            double dbRange = Configuration.getWaterfallMaxDb() - Configuration.getWaterfallMinDb();
             for (int i = 0; i < n; i++) {
                 double real = fftBuf[2 * i];
                 double imag = fftBuf[2 * i + 1];
                 magnitude[i] = 10.0 * Math.log10(real * real + imag * imag) + 20.0 * Math.log10(gain);
+
+                double normalizedDb = (magnitude[i] - Configuration.getWaterfallMinDb()) / dbRange;
+                normalizedDb = Math.max(0.0, Math.min(1.0, normalizedDb));
+                magnitude[i] = (float) normalizedDb; // TODO: maybe not do this here. idk
             }
 
             try {

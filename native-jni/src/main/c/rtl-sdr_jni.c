@@ -161,10 +161,15 @@ JNIEXPORT jint JNICALL Java_net_ellie_bolt_jni_rtlsdr_RTLSDR_nResetBuffer(JNIEnv
     return rtlsdr_reset_buffer(dev);
 }
 
-JNIEXPORT jint JNICALL Java_net_ellie_bolt_jni_rtlsdr_RTLSDR_nReadSync(JNIEnv *env, jobject obj, jlong device, jbyteArray buffer, jint length) {
+JNIEXPORT jint JNICALL Java_net_ellie_bolt_jni_rtlsdr_RTLSDR_nReadSync(JNIEnv *env, jobject obj, jlong device, jbyteArray buffer, jint length, jintArray n_read) {
     rtlsdr_dev_t *dev = (rtlsdr_dev_t *)(uintptr_t)device;
     jbyte *bufferBytes = (*env)->GetByteArrayElements(env, buffer, NULL);
-    int result = rtlsdr_read_sync(dev, (void *)bufferBytes, length, NULL);
+    int readBytes = 0;
+    int result = rtlsdr_read_sync(dev, (void *)bufferBytes, length, &readBytes);
     (*env)->ReleaseByteArrayElements(env, buffer, bufferBytes, 0);
+    if (n_read != NULL) {
+        jint readBytes_jint = readBytes;
+        (*env)->SetIntArrayRegion(env, n_read, 0, 1, &readBytes_jint);
+    }
     return result;
 }

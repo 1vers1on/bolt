@@ -13,6 +13,7 @@ import imgui.glfw.ImGuiImplGlfw;
 import net.ellie.bolt.config.Configuration;
 import net.ellie.bolt.contexts.PortAudioContext;
 import net.ellie.bolt.dsp.DspThread;
+import net.ellie.bolt.dsp.windows.HannWindow;
 import net.ellie.bolt.gui.FrequencyWidget;
 import net.ellie.bolt.gui.PlayPauseButton;
 import net.ellie.bolt.gui.Waterfall;
@@ -221,11 +222,11 @@ public class Bolt {
             if (!pipelineRunning && playPauseButton.isPlaying()) {
                 inputSource = InputSourceFactory.createInputSource();
                 inputThread = new InputThread(inputSource);
-                dspThread = new DspThread(inputThread.getBuffer());
+                dspThread = new DspThread(inputThread.getBuffer(), new HannWindow());
                 inputThread.start();
                 dspThread.start();
                 pipelineRunning = true;
-            } else if (pipelineRunning && playPauseButton.isPlaying()) {
+            } else if (pipelineRunning && !playPauseButton.isPlaying()) {
                 inputThread.stop();
                 dspThread.stop();
                 pipelineRunning = false;

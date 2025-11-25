@@ -242,10 +242,10 @@ JNIEXPORT jint JNICALL Java_net_ellie_bolt_jni_rtlsdr_RTLSDR_nResetBuffer
 /*
  * Class:     net_ellie_bolt_jni_rtlsdr_RTLSDR
  * Method:    nReadSync
- * Signature: (J[BI)I
+ * Signature: (J[BI[I)I
  */
 JNIEXPORT jint JNICALL Java_net_ellie_bolt_jni_rtlsdr_RTLSDR_nReadSync
-  (JNIEnv *, jobject, jlong, jbyteArray, jint);
+  (JNIEnv *, jobject, jlong, jbyteArray, jint, jintArray);
 
 #ifdef __cplusplus
 }

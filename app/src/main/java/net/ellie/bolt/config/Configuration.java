@@ -8,6 +8,8 @@ public class Configuration {
     private static int fftSize = 4096;
     private static int msaaSamples = 4;
     private static RTLSDRConfig rtlSdrConfig = new RTLSDRConfig();
+    private static double waterfallMinDb = -60.0;
+    private static double waterfallMaxDb = 6.0;
 
     public static Colormap getColormap() {
         return colormap;
@@ -47,5 +49,21 @@ public class Configuration {
 
     public static void setRtlSdrConfig(RTLSDRConfig newRtlSdrConfig) {
         rtlSdrConfig = newRtlSdrConfig;
+    }
+
+    public static double getWaterfallMinDb() {
+        return waterfallMinDb;
+    }
+
+    public static void setWaterfallMinDb(double newWaterfallMinDb) {
+        waterfallMinDb = newWaterfallMinDb;
+    }
+
+    public static double getWaterfallMaxDb() {
+        return waterfallMaxDb;
+    }
+
+    public static void setWaterfallMaxDb(double newWaterfallMaxDb) {
+        waterfallMaxDb = newWaterfallMaxDb;
     }
 }

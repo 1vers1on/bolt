@@ -26,7 +26,7 @@ public class InputThread implements Runnable {
         int bufferSize = Configuration.getFftSize() * 32 * complexFactor; // TODO: figure out the correct size
         this.buffer = new CircularFloatBuffer(bufferSize);
 
-        this.readBuffer = new float[4096 * complexFactor];
+        this.readBuffer = new float[4 * 16384 * complexFactor]; // TODO: maybe increase the size
     }
 
     public void start() {
@@ -40,11 +40,15 @@ public class InputThread implements Runnable {
         try {
             while (running.get()) {
                 int samplesRead = inputSource.read(readBuffer, 0, readBuffer.length);
-
                 if (samplesRead > 0) {
                     buffer.write(readBuffer, 0, samplesRead);
                 } else {
-                    Thread.onSpinWait();
+                    try {
+                        Thread.sleep(1);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
                 }
             }
         } catch (InterruptedException e) {

@@ -16,6 +16,7 @@ public class RTLSDRInputSource implements CloseableInputSource {
         }
         rtlSdr.setSampleRate(sampleRate);
         rtlSdr.setCenterFreq(centerFreq);
+        rtlSdr.resetBuffer();
     }
 
     @Override
@@ -24,7 +25,7 @@ public class RTLSDRInputSource implements CloseableInputSource {
             return 0;
         }
         byte[] byteBuffer = new byte[length]; // TODO: see if this size is correct or not
-        int bytesRead = rtlSdr.readSync(byteBuffer, byteBuffer.length);
+        int bytesRead = rtlSdr.readSync(byteBuffer, length);
         if (bytesRead <= 0) {
             return 0;
         }
