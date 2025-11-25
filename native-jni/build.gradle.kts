@@ -19,7 +19,7 @@ library {
 }
 
 tasks.withType<LinkSharedLibrary>().configureEach {
-    linkerArgs.addAll(listOf("-lportaudio"))
+    linkerArgs.addAll(listOf("-lportaudio", "-lrtlsdr"))
 }
 
 tasks.withType<CppCompile>().configureEach {

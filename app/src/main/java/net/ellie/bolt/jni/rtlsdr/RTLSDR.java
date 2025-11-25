@@ -7,8 +7,8 @@ public class RTLSDR {
 
     private long nativeHandle = 0;
 
-    public native int getDeviceCount();
-    public native String getDeviceName(int index);
+    public static native int getDeviceCount();
+    public static native String getDeviceName(int index);
     
     private native long nOpen(int deviceIndex);
     private native int nClose(long device);

@@ -5,10 +5,10 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import net.ellie.bolt.contexts.PortAudioContext;
-import net.ellie.bolt.input.IInputSource;
+import net.ellie.bolt.input.CloseableInputSource;
 import net.ellie.bolt.jni.portaudio.AudioInputStream;
 
-public class PortAudioInputSource implements IInputSource, AutoCloseable {
+public class PortAudioInputSource implements CloseableInputSource {
     private volatile boolean running = true;
     private AudioInputStream audioInputStream;
     private final int sampleRate;

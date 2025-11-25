@@ -18,6 +18,30 @@ public class CircularDoubleBuffer {
         this.buffer = new double[capacity];
     }
 
+    public void write(float[] data, int offset, int length) throws InterruptedException {
+        lock.lock();
+        try {
+            while (size + length > capacity) {
+                notFull.await();
+            }
+            int remaining = length;
+            int srcPos = offset;
+            while (remaining > 0) {
+                int toWrite = Math.min(remaining, capacity - writeIndex);
+                for (int i = 0; i < toWrite; i++) {
+                    buffer[writeIndex + i] = data[srcPos + i];
+                }
+                srcPos += toWrite;
+                writeIndex = (writeIndex + toWrite) % capacity;
+                remaining -= toWrite;
+            }
+            size += length;
+            notEmpty.signalAll();
+        } finally {
+            lock.unlock();
+        }
+    }
+
     public void write(double[] data, int offset, int length) throws InterruptedException {
         lock.lock();
         try {
@@ -35,6 +59,30 @@ public class CircularDoubleBuffer {
             }
             size += length;
             notEmpty.signalAll();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public void read(float[] dest, int offset, int length) throws InterruptedException {
+        lock.lock();
+        try {
+            while (size < length) {
+                notEmpty.await();
+            }
+            int remaining = length;
+            int destPos = offset;
+            while (remaining > 0) {
+                int toRead = Math.min(remaining, capacity - readIndex);
+                for (int i = 0; i < toRead; i++) {
+                    dest[destPos + i] = (float) buffer[readIndex + i];
+                }
+                destPos += toRead;
+                readIndex = (readIndex + toRead) % capacity;
+                remaining -= toRead;
+            }
+            size -= length;
+            notFull.signalAll();
         } finally {
             lock.unlock();
         }

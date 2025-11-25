@@ -1,9 +1,9 @@
 package net.ellie.bolt.input.sources.complex;
 
-import net.ellie.bolt.input.IInputSource;
+import net.ellie.bolt.input.CloseableInputSource;
 import net.ellie.bolt.jni.rtlsdr.RTLSDR;
 
-public class RTLSDRInputSource implements IInputSource, AutoCloseable {
+public class RTLSDRInputSource implements CloseableInputSource {
     private volatile boolean running = true;
     private final RTLSDR rtlSdr;
     private final int deviceIndex;

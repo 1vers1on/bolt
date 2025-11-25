@@ -7,9 +7,8 @@ import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 
 import imgui.ImGui;
-
+import net.ellie.bolt.config.Configuration;
 import net.ellie.bolt.gui.colormap.Colormaps;
-import net.ellie.bolt.Configuration;
 
 public class Waterfall implements IGuiElement {
     private int waterfallTextureId;
@@ -38,14 +37,32 @@ public class Waterfall implements IGuiElement {
     public void update(float[] fftData) {
         System.arraycopy(pixelData, 0, pixelData, width * 3, pixelData.length - width * 3);
 
-        for (int x = 0; x < width; x++) {
-            float power = fftData[x]; // assume normalized 0-1
+        if (fftData.length == width) {
+            for (int x = 0; x < width; x++) {
+                float power = fftData[x];
+                Color color = Colormaps.mapValue(Configuration.getColormap(), power);
+                pixelData[x * 3] = (byte) color.getRed();
+                pixelData[x * 3 + 1] = (byte) color.getGreen();
+                pixelData[x * 3 + 2] = (byte) color.getBlue();
+            }
+        } else {
+            for (int x = 0; x < width; x++) {
+                float fftIndexFloat = (float) x / (width - 1) * (fftData.length - 1);
+                int fftIndex1 = (int) fftIndexFloat;
+                int fftIndex2 = Math.min(fftIndex1 + 1, fftData.length - 1);
+                float fraction = fftIndexFloat - fftIndex1;
 
-            Color color = Colormaps.mapValue(Configuration.getColormap(), power);
+                float power1 = fftData[fftIndex1];
+                float power2 = fftData[fftIndex2];
 
-            pixelData[x * 3] = (byte) color.getRed();
-            pixelData[x * 3 + 1] = (byte) color.getGreen();
-            pixelData[x * 3 + 2] = (byte) color.getBlue();
+                float power = power1 + fraction * (power2 - power1);
+
+                Color color = Colormaps.mapValue(Configuration.getColormap(), power);
+
+                pixelData[x * 3] = (byte) color.getRed();
+                pixelData[x * 3 + 1] = (byte) color.getGreen();
+                pixelData[x * 3 + 2] = (byte) color.getBlue();
+            }
         }
 
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, waterfallTextureId);

@@ -13,7 +13,7 @@ extern "C" {
  * Signature: ()I
  */
 JNIEXPORT jint JNICALL Java_net_ellie_bolt_jni_rtlsdr_RTLSDR_getDeviceCount
-  (JNIEnv *, jobject);
+  (JNIEnv *, jclass);
 
 /*
  * Class:     net_ellie_bolt_jni_rtlsdr_RTLSDR
@@ -21,7 +21,7 @@ JNIEXPORT jint JNICALL Java_net_ellie_bolt_jni_rtlsdr_RTLSDR_getDeviceCount
  * Signature: (I)Ljava/lang/String;
  */
 JNIEXPORT jstring JNICALL Java_net_ellie_bolt_jni_rtlsdr_RTLSDR_getDeviceName
-  (JNIEnv *, jobject, jint);
+  (JNIEnv *, jclass, jint);
 
 /*
  * Class:     net_ellie_bolt_jni_rtlsdr_RTLSDR
