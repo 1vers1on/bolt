@@ -13,3 +13,4 @@ build
 .DS_Store
 thumbs.db
 *.log
+bin/
