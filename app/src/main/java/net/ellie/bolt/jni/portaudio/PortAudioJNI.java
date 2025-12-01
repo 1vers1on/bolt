@@ -41,4 +41,19 @@ public class PortAudioJNI {
         }
         return new AudioInputStream(streamPtr, channels);
     }
+
+    // -------- OUTPUT --------
+    static native long nativeOpenOutputStream(int deviceIndex, int channels, double sampleRate, long framesPerBuffer);
+
+    static native long nativeWriteStream(long streamPtr, byte[] buffer, long framesToWrite);
+
+    static native long nativeWriteStreamOffset(long streamPtr, byte[] buffer, int offset, long framesToWrite);
+
+    public AudioOutputStream openOutputStream(int deviceIndex, int channels, double sampleRate, long framesPerBuffer) {
+        long streamPtr = nativeOpenOutputStream(deviceIndex, channels, sampleRate, framesPerBuffer);
+        if (streamPtr == 0) {
+            throw new IllegalStateException("failed to open output stream");
+        }
+        return new AudioOutputStream(streamPtr, channels);
+    }
 }

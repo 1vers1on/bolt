@@ -1,6 +1,7 @@
 package net.ellie.bolt.input;
 
 import net.ellie.bolt.config.Configuration;
+import net.ellie.bolt.input.sources.complex.DummyInputSource;
 import net.ellie.bolt.input.sources.complex.RTLSDRInputSource;
 
 public class InputSourceFactory {
@@ -10,6 +11,8 @@ public class InputSourceFactory {
                 return new RTLSDRInputSource(Configuration.getRtlSdrConfig().getRtlSdrDeviceIndex(),
                         Configuration.getRtlSdrConfig().getRtlSdrSampleRate(),
                         Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency());
+            case "Dummy":
+                return new DummyInputSource(Configuration.getDummyConfig().getSampleRate());
             case "Audio":
                 throw new UnsupportedOperationException("Audio input source not implemented yet");
             case "File":

@@ -79,6 +79,30 @@ JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeRea
 JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeReadStreamOffset
   (JNIEnv *, jclass, jlong, jbyteArray, jint, jlong);
 
+/*
+ * Class:     net_ellie_bolt_jni_portaudio_PortAudioJNI
+ * Method:    nativeOpenOutputStream
+ * Signature: (IIDJ)J
+ */
+JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeOpenOutputStream
+  (JNIEnv *, jclass, jint, jint, jdouble, jlong);
+
+/*
+ * Class:     net_ellie_bolt_jni_portaudio_PortAudioJNI
+ * Method:    nativeWriteStream
+ * Signature: (J[BJ)J
+ */
+JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeWriteStream
+  (JNIEnv *, jclass, jlong, jbyteArray, jlong);
+
+/*
+ * Class:     net_ellie_bolt_jni_portaudio_PortAudioJNI
+ * Method:    nativeWriteStreamOffset
+ * Signature: (J[BIJ)J
+ */
+JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeWriteStreamOffset
+  (JNIEnv *, jclass, jlong, jbyteArray, jint, jlong);
+
 #ifdef __cplusplus
 }
 #endif

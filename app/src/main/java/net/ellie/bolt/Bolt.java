@@ -15,6 +15,7 @@ import net.ellie.bolt.contexts.PortAudioContext;
 import net.ellie.bolt.dsp.DspThread;
 import net.ellie.bolt.dsp.windows.HannWindow;
 import net.ellie.bolt.gui.FrequencyWidget;
+import net.ellie.bolt.gui.Panadapter;
 import net.ellie.bolt.gui.PlayPauseButton;
 import net.ellie.bolt.gui.Waterfall;
 import net.ellie.bolt.input.CloseableInputSource;
@@ -28,6 +29,7 @@ import imgui.ImGui;
 import imgui.ImGuiIO;
 import imgui.ImGuiStyle;
 import imgui.ImVec2;
+import imgui.extension.implot.ImPlot;
 import imgui.type.ImInt;
 import imgui.flag.ImGuiConfigFlags;
 import imgui.flag.ImGuiDir;
@@ -60,6 +62,7 @@ public class Bolt {
     private Waterfall waterfall;
     private FrequencyWidget frequencyWidget = new FrequencyWidget();
     private PlayPauseButton playPauseButton = new PlayPauseButton();
+    private Panadapter panadapter = new Panadapter();
 
     public boolean pipelineRunning = false;
 
@@ -103,6 +106,7 @@ public class Bolt {
         ImGui.createContext();
         imGuiGlfw.init(window, true);
         imGuiGl3.init("#version 330 core");
+        ImPlot.createContext();
 
         ImGuiIO io = ImGui.getIO();
         io.addConfigFlags(ImGuiConfigFlags.DockingEnable);
@@ -155,6 +159,9 @@ public class Bolt {
         boolean firstTime = true;
         float[] fftData = new float[Configuration.getFftSize()];
 
+        waterfall.update(fftData);
+        panadapter.update(fftData);
+
         while (!GLFW.glfwWindowShouldClose(window)) {
             GLFW.glfwPollEvents();
 
@@ -166,7 +173,10 @@ public class Bolt {
                 }
             }
 
-            waterfall.update(fftData);
+            if (pipelineRunning) {
+                waterfall.update(fftData);
+                panadapter.update(fftData);
+            }
 
             imGuiGlfw.newFrame();
             imGuiGl3.newFrame();
@@ -249,7 +259,7 @@ public class Bolt {
             ImGui.setNextWindowPos(new_window_pos);
             ImGui.end();
 
-            ImGui.begin("Sidebar", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize);
+            ImGui.begin("LeftSidebar", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize);
             ImGui.setWindowSize(250, ImGui.getMainViewport().getSizeY() - parent_size.y);
 
             if (ImGui.collapsingHeader("Input Source", ImGuiTreeNodeFlags.DefaultOpen)) {
@@ -271,8 +281,14 @@ public class Bolt {
                     if (ImGui.selectable("RTL-SDR", Configuration.getInputDevice().equals("RTL-SDR"))) {
                         Configuration.setInputDevice("RTL-SDR");
                     }
-
                     if (Configuration.getInputDevice().equals("RTL-SDR")) {
+                        ImGui.setItemDefaultFocus();
+                    }
+
+                    if (ImGui.selectable("Dummy", Configuration.getInputDevice().equals("Dummy"))) {
+                        Configuration.setInputDevice("Dummy");
+                    }
+                    if (Configuration.getInputDevice().equals("Dummy")) {
                         ImGui.setItemDefaultFocus();
                     }
 
@@ -314,9 +330,36 @@ public class Bolt {
             
             ImGui.end();
 
-            ImGui.begin("Waterfall");
+            ImGui.begin("RightSidebar", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize);            
+            ImGui.setWindowPos(ImGui.getMainViewport().getSizeX() - 35, parent_size.y);
+            ImGui.setWindowSize(35, ImGui.getMainViewport().getSizeY() - parent_size.y);
+            ImGui.text("Max");
+            float[] waterfallMax = new float[] { (float) Configuration.getWaterfallMaxDb() };
+            if (ImGui.vSliderFloat("##Max", new ImVec2(20, 150), waterfallMax, -100.0f, 0.0f, "##")) {
+                Configuration.setWaterfallMaxDb(waterfallMax[0]);
+            }
+            ImGui.dummy(0, 10);
+            ImGui.text("Min");
+            float[] waterfallMin = new float[] { (float) Configuration.getWaterfallMinDb() };
+            if (ImGui.vSliderFloat("##Min", new ImVec2(20, 150), waterfallMin, -100.0f, 0.0f, "##")) {
+                Configuration.setWaterfallMinDb(waterfallMin[0]);
+            }
+            ImGui.end();
+
+            // create center window for waterfall and panadapter
+            ImGui.begin("CenterWindow", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize);
+            ImGui.setWindowPos(250, parent_size.y);
+            ImGui.setWindowSize(ImGui.getMainViewport().getSizeX() - 285, ImGui.getMainViewport().getSizeY() - parent_size.y);
+            panadapter.render();
             waterfall.render();
             ImGui.end();
+
+            // ImGui.begin("Waterfall");
+            // ImGui.end();
+
+            // ImGui.begin("Panadapter");
+            // panadapter.update(fftData);
+            // ImGui.end();
 
             ImGui.render();
             GL11.glClearColor(0.1f, 0.1f, 0.1f, 1.0f);

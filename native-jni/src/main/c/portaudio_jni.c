@@ -241,3 +241,104 @@ JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeRea
 
     return (jlong)(framesRequested * bytesPerFrame);
 }
+
+JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeOpenOutputStream(
+    JNIEnv *env, jclass cls, jint deviceIndex, jint channels, jdouble sampleRate, jlong framesPerBuffer) {
+
+    PaStream* stream;
+    PaStreamParameters outputParameters;
+    memset(&outputParameters, 0, sizeof(PaStreamParameters));
+    outputParameters.device = (PaDeviceIndex)deviceIndex;
+    outputParameters.channelCount = (int)channels;
+    outputParameters.sampleFormat = paInt16;
+    outputParameters.suggestedLatency = Pa_GetDeviceInfo(outputParameters.device)->defaultLowOutputLatency;
+    outputParameters.hostApiSpecificStreamInfo = NULL;
+
+    PaError err = Pa_OpenStream(&stream, NULL, &outputParameters, (double)sampleRate,
+                                (unsigned long)framesPerBuffer, paNoFlag, NULL, NULL);
+    if (err != paNoError) {
+        throwPaException(env, &err);
+        return 0;
+    }
+
+    return (jlong)stream;
+}
+
+
+JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeWriteStream(
+    JNIEnv *env, jclass cls, jlong streamPtr, jbyteArray buffer, jlong framesToWrite) {
+
+    PaStream* stream = (PaStream*)streamPtr;
+    if (!stream) {
+        jclass ex = (*env)->FindClass(env, "java/lang/IllegalStateException");
+        (*env)->ThrowNew(env, ex, "Stream is NULL");
+        return -1;
+    }
+
+    jboolean isCopy;
+    jbyte* bufferPtr = (*env)->GetByteArrayElements(env, buffer, &isCopy);
+    if (!bufferPtr) {
+        jclass oom = (*env)->FindClass(env, "java/lang/OutOfMemoryError");
+        (*env)->ThrowNew(env, oom, "Cannot get byte array elements");
+        return -2;
+    }
+
+    PaError err = Pa_WriteStream(stream, bufferPtr, (unsigned long)framesToWrite);
+
+    (*env)->ReleaseByteArrayElements(env, buffer, bufferPtr, 0);
+
+    if (err == paOutputUnderflowed) {
+        return 0;
+    } else if (err != paNoError) {
+        throwPaException(env, &err);
+        return -3;
+    }
+
+    const PaDeviceInfo* devInfo = Pa_GetDeviceInfo(Pa_GetStreamInfo(stream)->outputLatency == 0 ? 0 : Pa_GetDefaultOutputDevice());
+    int ch = (devInfo && devInfo->maxOutputChannels > 0) ? devInfo->maxOutputChannels : 1;
+    return (jlong)(framesToWrite * ch * 2);
+}
+
+JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeWriteStreamOffset(
+    JNIEnv *env, jclass cls, jlong streamPtr, jbyteArray buffer, jint offset, jlong framesToWrite) {
+
+    PaStream* stream = (PaStream*)streamPtr;
+    if (!stream) {
+        jclass ex = (*env)->FindClass(env, "java/lang/IllegalStateException");
+        (*env)->ThrowNew(env, ex, "Stream is NULL");
+        return -1;
+    }
+
+    jsize bufLen = (*env)->GetArrayLength(env, buffer);
+    const PaDeviceInfo* devInfo = Pa_GetDeviceInfo(Pa_GetStreamInfo(stream)->outputLatency == 0 ? 0 : Pa_GetDefaultOutputDevice());
+    int ch = (devInfo && devInfo->maxOutputChannels > 0) ? devInfo->maxOutputChannels : 1;
+    jsize bytesPerFrame = 2 * ch;
+
+    jlong requiredBytes = framesToWrite * bytesPerFrame;
+    if (offset < 0 || (offset + requiredBytes) > bufLen) {
+        jclass ex = (*env)->FindClass(env, "java/lang/IllegalArgumentException");
+        (*env)->ThrowNew(env, ex, "Write would exceed buffer length");
+        return -2;
+    }
+
+    jboolean isCopy;
+    jbyte* bufferPtr = (*env)->GetByteArrayElements(env, buffer, &isCopy);
+    if (!bufferPtr) {
+        jclass oom = (*env)->FindClass(env, "java/lang/OutOfMemoryError");
+        (*env)->ThrowNew(env, oom, "Cannot get byte array elements");
+        return -3;
+    }
+
+    PaError err = Pa_WriteStream(stream, bufferPtr + offset, (unsigned long)framesToWrite);
+
+    (*env)->ReleaseByteArrayElements(env, buffer, bufferPtr, 0);
+
+    if (err == paOutputUnderflowed) {
+        return 0;
+    } else if (err != paNoError) {
+        throwPaException(env, &err);
+        return -4;
+    }
+
+    return (jlong)(framesToWrite * bytesPerFrame);
+}
