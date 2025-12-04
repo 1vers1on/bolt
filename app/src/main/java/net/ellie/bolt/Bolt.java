@@ -21,6 +21,7 @@ import net.ellie.bolt.gui.Waterfall;
 import net.ellie.bolt.input.CloseableInputSource;
 import net.ellie.bolt.input.InputSourceFactory;
 import net.ellie.bolt.input.InputThread;
+import net.ellie.bolt.jni.portaudio.PortAudioJNI.DeviceInfo;
 import net.ellie.bolt.jni.rtlsdr.RTLSDR;
 import net.ellie.bolt.util.UnitFormatter;
 import imgui.ImFontAtlas;
@@ -294,39 +295,54 @@ public class Bolt {
 
                     ImGui.endCombo();
                 }
-            }
 
-            ImGui.beginDisabled(pipelineRunning);
-            if (Configuration.getInputDevice().equals("RTL-SDR")) {
-                if (ImGui.beginCombo("##RTLSDRDevice", RTLSDR.getDeviceName(Configuration.getRtlSdrConfig().getRtlSdrDeviceIndex()))) { // TODO: Dont poll every frame for device name
-                    int deviceCount = RTLSDR.getDeviceCount();
-                    for (int i = 0; i < deviceCount; i++) {
-                        String deviceName = RTLSDR.getDeviceName(i);
-                        if (ImGui.selectable(deviceName, Configuration.getRtlSdrConfig().getRtlSdrDeviceIndex() == i)) {
-                            Configuration.getRtlSdrConfig().setRtlSdrDeviceIndex(i);
+                ImGui.beginDisabled(pipelineRunning);
+                if (Configuration.getInputDevice().equals("RTL-SDR")) {
+                    if (ImGui.beginCombo("##RTLSDRDevice", RTLSDR.getDeviceName(Configuration.getRtlSdrConfig().getRtlSdrDeviceIndex()))) { // TODO: Dont poll every frame for device name
+                        int deviceCount = RTLSDR.getDeviceCount();
+                        for (int i = 0; i < deviceCount; i++) {
+                            String deviceName = RTLSDR.getDeviceName(i);
+                            if (ImGui.selectable(deviceName, Configuration.getRtlSdrConfig().getRtlSdrDeviceIndex() == i)) {
+                                Configuration.getRtlSdrConfig().setRtlSdrDeviceIndex(i);
+                            }
+                            if (Configuration.getRtlSdrConfig().getRtlSdrDeviceIndex() == i) {
+                                ImGui.setItemDefaultFocus();
+                            }
                         }
-                        if (Configuration.getRtlSdrConfig().getRtlSdrDeviceIndex() == i) {
+                        ImGui.endCombo();
+                    }
+
+                    ImGui.text("Sample Rate");
+
+                    if (ImGui.beginCombo("##SampleRate", UnitFormatter.formatFrequency(Configuration.getRtlSdrConfig().getRtlSdrSampleRate()))) {
+                        for (int rate : Configuration.getRtlSdrConfig().getRtlSdrSampleRates()) {
+                            if (ImGui.selectable(UnitFormatter.formatFrequency(rate), Configuration.getRtlSdrConfig().getRtlSdrSampleRate() == rate)) {
+                                Configuration.getRtlSdrConfig().setRtlSdrSampleRate(rate);
+                            }
+                            if (Configuration.getRtlSdrConfig().getRtlSdrSampleRate() == rate) {
+                                ImGui.setItemDefaultFocus();
+                            }
+                        }
+                        ImGui.endCombo();
+                    }
+                }
+                ImGui.endDisabled();
+            }
+            
+            if (ImGui.collapsingHeader("Output", ImGuiTreeNodeFlags.DefaultOpen)) {
+                if (ImGui.beginCombo("##AudioOutputDevice", Configuration.getAudioOutputDevice())) {
+                    PortAudioContext portAudioContext = PortAudioContext.getInstance();
+                    for (DeviceInfo device : portAudioContext.getPortAudioJNI().enumerateDevices()) {
+                        if (ImGui.selectable(device.name(), Configuration.getAudioOutputDevice().equals(device.name()))) {
+                            Configuration.setAudioOutputDevice(device.name());
+                        }
+                        if (Configuration.getAudioOutputDevice().equals(device.name())) {
                             ImGui.setItemDefaultFocus();
                         }
                     }
                     ImGui.endCombo();
                 }
-
-                ImGui.text("Sample Rate");
-
-                if (ImGui.beginCombo("##SampleRate", UnitFormatter.formatFrequency(Configuration.getRtlSdrConfig().getRtlSdrSampleRate()))) {
-                    for (int rate : Configuration.getRtlSdrConfig().getRtlSdrSampleRates()) {
-                        if (ImGui.selectable(UnitFormatter.formatFrequency(rate), Configuration.getRtlSdrConfig().getRtlSdrSampleRate() == rate)) {
-                            Configuration.getRtlSdrConfig().setRtlSdrSampleRate(rate);
-                        }
-                        if (Configuration.getRtlSdrConfig().getRtlSdrSampleRate() == rate) {
-                            ImGui.setItemDefaultFocus();
-                        }
-                    }
-                    ImGui.endCombo();
-                }
             }
-            ImGui.endDisabled();
             
             ImGui.end();
 

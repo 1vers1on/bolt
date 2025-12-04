@@ -1,5 +1,7 @@
 package net.ellie.bolt.dsp;
 
+import java.util.List;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import edu.emory.mathcs.jtransforms.fft.DoubleFFT_1D;
@@ -18,6 +20,12 @@ public class DspThread implements Runnable {
     private DoubleFFT_1D fft;
     private IWindow windowFunction;
     private CircularFloatBuffer waterfallOutputBuffer;
+
+    private List<IPipelineStep> pipelineSteps = new ArrayList<>();
+
+    private final NumberType inputType = NumberType.COMPLEX; // TODO: make configurable
+
+    private boolean pipelineValid = false;
 
     public DspThread(CircularFloatBuffer inputBuffer, IWindow windowFunction) {
         this.inputBuffer = inputBuffer;
@@ -82,5 +90,46 @@ public class DspThread implements Runnable {
 
     public CircularFloatBuffer getWaterfallOutputBuffer() {
         return waterfallOutputBuffer;
+    }
+
+    private void validatePipeline() {
+        NumberType previousType = inputType;
+
+        for (IPipelineStep step : pipelineSteps) {
+            var types = step.getInputOutputType();
+            NumberType stepInputType = types.getFirst();
+            NumberType stepOutputType = types.getSecond();
+
+            if (stepInputType != previousType) {
+                throw new IllegalStateException("Pipeline step input type " + stepInputType +
+                        " does not match previous output type " + previousType);
+            }
+
+            previousType = stepOutputType;
+        }
+    }
+
+    private void clearPipeline() {
+        pipelineValid = false;
+        pipelineSteps = new ArrayList<>();
+    }
+
+    public void addPipelineStep(IPipelineStep step) {
+        pipelineSteps.add(step);
+        pipelineValid = false;
+    }
+
+    public void buildPipeline() {
+        try {
+            validatePipeline();
+            pipelineValid = true;
+        } catch (IllegalStateException e) {
+            logger.error("Invalid DSP pipeline configuration", e);
+            clearPipeline();
+        }
+    }
+
+    public List<IPipelineStep> getPipelineSteps() {
+        return pipelineSteps;
     }
 }

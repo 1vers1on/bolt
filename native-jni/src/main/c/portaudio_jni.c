@@ -36,11 +36,19 @@ JNIEXPORT void JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_terminate(
 
 JNIEXPORT jobject JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_enumerateDevices(JNIEnv *env, jobject obj) {
     jclass arrayListClass = (*env)->FindClass(env, "java/util/ArrayList");
+    if (arrayListClass == NULL) return NULL;
     jmethodID arrayListInit = (*env)->GetMethodID(env, arrayListClass, "<init>", "()V");
+    if (arrayListInit == NULL) return NULL;
     jobject deviceList = (*env)->NewObject(env, arrayListClass, arrayListInit);
+    if (deviceList == NULL) return NULL;
     jmethodID arrayListAdd = (*env)->GetMethodID(env, arrayListClass, "add", "(Ljava/lang/Object;)Z");
-    jclass deviceInfoClass = (*env)->FindClass(env, "net/ellie/portaudiojni/PortAudioJNI$DeviceInfo");
+    if (arrayListAdd == NULL) return NULL;
+
+    jclass deviceInfoClass = (*env)->FindClass(env, "net/ellie/bolt/jni/portaudio/PortAudioJNI$DeviceInfo");
+    if (deviceInfoClass == NULL) return NULL;
+
     jmethodID deviceInfoInit = (*env)->GetMethodID(env, deviceInfoClass, "<init>", "(ILjava/lang/String;Ljava/lang/String;IID)V");
+    if (deviceInfoInit == NULL) return NULL;
 
     PaError err;
     int numDevices = Pa_GetDeviceCount();
@@ -51,15 +59,36 @@ JNIEXPORT jobject JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_enumera
 
     for (int i = 0; i < numDevices; i++) {
         const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(i);
+        if (deviceInfo == NULL) continue;
         const PaHostApiInfo* hostApiInfo = Pa_GetHostApiInfo(deviceInfo->hostApi);
-        jstring name = (*env)->NewStringUTF(env, deviceInfo->name);
-        jstring hostApiName = (*env)->NewStringUTF(env, hostApiInfo->name);
+        const char* hostName = hostApiInfo ? hostApiInfo->name : "Unknown";
+        jstring name = (*env)->NewStringUTF(env, deviceInfo->name ? deviceInfo->name : "Unknown");
+        jstring hostApiName = (*env)->NewStringUTF(env, hostName);
+        if (name == NULL || hostApiName == NULL) {
+            if (name) (*env)->DeleteLocalRef(env, name);
+            if (hostApiName) (*env)->DeleteLocalRef(env, hostApiName);
+            return NULL;
+        }
+
         jobject deviceInfoObj = (*env)->NewObject(env, deviceInfoClass, deviceInfoInit,
                                                  (jint)i, name, hostApiName,
                                                  (jint)deviceInfo->maxInputChannels,
                                                  (jint)deviceInfo->maxOutputChannels,
                                                  (jdouble)deviceInfo->defaultSampleRate);
+        if (deviceInfoObj == NULL) {
+            (*env)->DeleteLocalRef(env, name);
+            (*env)->DeleteLocalRef(env, hostApiName);
+            return NULL;
+        }
+
         (*env)->CallBooleanMethod(env, deviceList, arrayListAdd, deviceInfoObj);
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->DeleteLocalRef(env, name);
+            (*env)->DeleteLocalRef(env, hostApiName);
+            (*env)->DeleteLocalRef(env, deviceInfoObj);
+            return NULL;
+        }
+
         (*env)->DeleteLocalRef(env, name);
         (*env)->DeleteLocalRef(env, hostApiName);
         (*env)->DeleteLocalRef(env, deviceInfoObj);

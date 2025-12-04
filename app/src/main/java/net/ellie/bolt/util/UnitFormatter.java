@@ -12,7 +12,7 @@ public class UnitFormatter {
         }
 
         double value = frequency;
-        String[] units = {"Hz", "kHz", "MHz", "GHz"};
+        String[] units = {"Hz", "kHz", "MHz", "GHz", "THz"};
         int unitIndex = 0;
 
         while (value >= 1000 && unitIndex < units.length - 1) {

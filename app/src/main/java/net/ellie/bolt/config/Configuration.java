@@ -10,6 +10,8 @@ public class Configuration {
     private static double waterfallMinDb = -60.0;
     private static double waterfallMaxDb = 6.0;
     private static double zoomLevel = 1.0; // TODO: implement zooming
+    private static String audioOutputDevice = "Default";
+    private static int targetFrequency = 101_200_000; // 101.2 MHz
 
     private static RTLSDRConfig rtlSdrConfig = new RTLSDRConfig();
     private static DummyInputConfig dummyConfig = new DummyInputConfig(2048000);
@@ -84,5 +86,21 @@ public class Configuration {
 
     public static void setZoomLevel(double newZoomLevel) {
         zoomLevel = newZoomLevel;
+    }
+
+    public static String getAudioOutputDevice() {
+        return audioOutputDevice;
+    }
+
+    public static void setAudioOutputDevice(String newAudioOutputDevice) {
+        audioOutputDevice = newAudioOutputDevice;
+    }
+
+    public static int getTargetFrequency() {
+        return targetFrequency;
+    }
+
+    public static void setTargetFrequency(int newTargetFrequency) {
+        targetFrequency = newTargetFrequency;
     }
 }

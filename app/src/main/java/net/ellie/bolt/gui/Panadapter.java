@@ -4,7 +4,6 @@ import imgui.ImGui;
 import imgui.ImVec2;
 import imgui.extension.implot.ImPlot;
 import imgui.extension.implot.flag.ImPlotFlags;
-import imgui.extension.implot.flag.ImPlotAxisFlags;
 import imgui.extension.implot.flag.ImPlotStyleVar;
 
 public class Panadapter implements IGuiElement {
@@ -29,10 +28,8 @@ public class Panadapter implements IGuiElement {
 
             int plotFlags = ImPlotFlags.NoTitle | ImPlotFlags.NoLegend | ImPlotFlags.NoMouseText
                           | ImPlotFlags.NoMenus | ImPlotFlags.NoBoxSelect | ImPlotFlags.NoFrame;
-            // int axisFlags = ImPlotAxisFlags.NoDecorations;
 
             if (ImPlot.beginPlot("Frequency Line Graph", new ImVec2(w, h), plotFlags)) {
-                // ImPlot.setupAxes(null, null, axisFlags, axisFlags);
                 ImPlot.plotLine("FFT Data", fftData, fftData.length);
                 ImPlot.endPlot();
             }
