@@ -14,3 +14,5 @@ build
 thumbs.db
 *.log
 bin/
+
+imgui.ini
