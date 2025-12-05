@@ -11,10 +11,13 @@ public class Configuration {
     private double waterfallMaxDb = 6.0;
     private double zoomLevel = 1.0; // TODO: implement zooming
     private String audioOutputDevice = "Default";
-    private int targetFrequency = 101_200_000; // 101.2 MHz
+    private int targetFrequency = 101_500_000; // 101.5 MHz
 
     private RTLSDRConfig rtlSdrConfig = new RTLSDRConfig();
     private DummyInputConfig dummyConfig = new DummyInputConfig(2048000);
+
+    private int audioBufferSize = 8192;
+    private int sampleRate = 48000;
 
     private static ConfigurationSaver saver = ConfigurationSaver.create();
     public static Configuration INSTANCE = saver.load();
@@ -115,6 +118,24 @@ public class Configuration {
 
     public static void setTargetFrequency(int newTargetFrequency) {
         INSTANCE.targetFrequency = newTargetFrequency;
+        saver.save(INSTANCE);
+    }
+
+    public static int getAudioBufferSize() {
+        return INSTANCE.audioBufferSize;
+    }
+
+    public static void setAudioBufferSize(int newAudioBufferSize) {
+        INSTANCE.audioBufferSize = newAudioBufferSize;
+        saver.save(INSTANCE);
+    }
+
+    public static int getSampleRate() {
+        return INSTANCE.sampleRate;
+    }
+
+    public static void setSampleRate(int newSampleRate) {
+        INSTANCE.sampleRate = newSampleRate;
         saver.save(INSTANCE);
     }
 }

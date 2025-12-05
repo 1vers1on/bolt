@@ -18,7 +18,7 @@ public class RTLSDRConfig {
         3_200_000
     };
 
-    private int rtlSdrCenterFrequency = 101_200_000;
+    private int rtlSdrCenterFrequency = 101_500_000;
 
     public int getRtlSdrDeviceIndex() {
         return rtlSdrDeviceIndex;

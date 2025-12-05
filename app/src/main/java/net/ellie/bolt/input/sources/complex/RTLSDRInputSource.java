@@ -44,7 +44,7 @@ public class RTLSDRInputSource implements CloseableInputSource {
 
     @Override
     public void stop() {
-        rtlSdr.close();
+        // rtlSdr.close();
         running = false;
     }
 

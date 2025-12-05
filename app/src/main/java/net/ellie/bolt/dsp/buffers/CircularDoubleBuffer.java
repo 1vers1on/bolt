@@ -110,6 +110,112 @@ public class CircularDoubleBuffer {
         }
     }
 
+    public int readNonBlocking(float[] dest, int offset, int length) {
+        lock.lock();
+        try {
+            int toReadTotal = Math.min(length, size);
+            int remaining = toReadTotal;
+            int destPos = offset;
+
+            while (remaining > 0) {
+                int toRead = Math.min(remaining, capacity - readIndex);
+                for (int i = 0; i < toRead; i++) {
+                    dest[destPos + i] = (float) buffer[readIndex + i];
+                }
+                destPos += toRead;
+                readIndex = (readIndex + toRead) % capacity;
+                remaining -= toRead;
+            }
+
+            size -= toReadTotal;
+            if (toReadTotal > 0) {
+                notFull.signalAll();
+            }
+            return toReadTotal;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public int readNonBlocking(double[] dest, int offset, int length) {
+        lock.lock();
+        try {
+            int toReadTotal = Math.min(length, size);
+            int remaining = toReadTotal;
+            int destPos = offset;
+
+            while (remaining > 0) {
+                int toRead = Math.min(remaining, capacity - readIndex);
+                System.arraycopy(buffer, readIndex, dest, destPos, toRead);
+                destPos += toRead;
+                readIndex = (readIndex + toRead) % capacity;
+                remaining -= toRead;
+            }
+
+            size -= toReadTotal;
+            if (toReadTotal > 0) {
+                notFull.signalAll();
+            }
+            return toReadTotal;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public int writeNonBlocking(float[] data, int offset, int length) {
+        lock.lock();
+        try {
+            int free = capacity - size;
+            int toWriteTotal = Math.min(length, free);
+            int remaining = toWriteTotal;
+            int srcPos = offset;
+
+            while (remaining > 0) {
+                int toWrite = Math.min(remaining, capacity - writeIndex);
+                for (int i = 0; i < toWrite; i++) {
+                    buffer[writeIndex + i] = data[srcPos + i];
+                }
+                srcPos += toWrite;
+                writeIndex = (writeIndex + toWrite) % capacity;
+                remaining -= toWrite;
+            }
+
+            size += toWriteTotal;
+            if (toWriteTotal > 0) {
+                notEmpty.signalAll();
+            }
+            return toWriteTotal;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public int writeNonBlocking(double[] data, int offset, int length) {
+        lock.lock();
+        try {
+            int free = capacity - size;
+            int toWriteTotal = Math.min(length, free);
+            int remaining = toWriteTotal;
+            int srcPos = offset;
+
+            while (remaining > 0) {
+                int toWrite = Math.min(remaining, capacity - writeIndex);
+                System.arraycopy(data, srcPos, buffer, writeIndex, toWrite);
+                srcPos += toWrite;
+                writeIndex = (writeIndex + toWrite) % capacity;
+                remaining -= toWrite;
+            }
+
+            size += toWriteTotal;
+            if (toWriteTotal > 0) {
+                notEmpty.signalAll();
+            }
+            return toWriteTotal;
+        } finally {
+            lock.unlock();
+        }
+    }
+
     public int available() {
         lock.lock();
         try {

@@ -21,6 +21,7 @@ public class DspThread implements Runnable {
     private DoubleFFT_1D fft;
     private IWindow windowFunction;
     private CircularFloatBuffer waterfallOutputBuffer;
+    private CircularFloatBuffer audioOutputBuffer;
 
     private List<IPipelineStep> pipelineSteps = new ArrayList<>();
 
@@ -32,6 +33,7 @@ public class DspThread implements Runnable {
         this.inputBuffer = inputBuffer;
         this.fft = new DoubleFFT_1D(Configuration.getFftSize());
         this.waterfallOutputBuffer = new CircularFloatBuffer(Configuration.getFftSize());
+        this.audioOutputBuffer = new CircularFloatBuffer(Configuration.getAudioBufferSize());
         this.windowFunction = windowFunction;
     }
 
@@ -48,7 +50,6 @@ public class DspThread implements Runnable {
         int n = Configuration.getFftSize();
         double[] fftBuf = new double[n * 2];
 
-
         while (running.get()) {
             try {
                 inputBuffer.read(fftBuf, 0, n * 2);
@@ -57,6 +58,8 @@ public class DspThread implements Runnable {
                 logger.error("DspThread interrupted during read", e);
                 break;
             }
+
+            double[] pipelineBuf = fftBuf;
 
             windowFunction.apply(fftBuf, n);
 
@@ -72,15 +75,29 @@ public class DspThread implements Runnable {
 
                 double normalizedDb = (magnitude[i] - Configuration.getWaterfallMinDb()) / dbRange;
                 normalizedDb = Math.max(0.0, Math.min(1.0, normalizedDb));
-                magnitude[i] = (float) normalizedDb; // TODO: maybe not do this here. idk
+                magnitude[i] = (float) normalizedDb;
             }
 
-            try {
-                waterfallOutputBuffer.write(magnitude, 0, n);
-            } catch (InterruptedException e) {
-                running.set(false);
-                logger.error("DspThread interrupted during write", e);
-                break;
+            double[] shifted = new double[n];
+            int half = n / 2;
+            System.arraycopy(magnitude, half, shifted, 0, n - half);
+            System.arraycopy(magnitude, 0, shifted, n - half, half);
+
+            waterfallOutputBuffer.writeNonBlocking(shifted, 0, n);
+
+            if (pipelineValid) {
+                int pipelineBufLength = pipelineBuf.length;
+                for (IPipelineStep step : pipelineSteps) {
+                    pipelineBufLength = step.process(pipelineBuf, pipelineBufLength);
+                }
+
+                if (pipelineSteps.get(pipelineSteps.size() - 1).getInputOutputType().getSecond() == NumberType.REAL) {
+                    float[] audioBuf = new float[pipelineBufLength];
+                    for (int i = 0; i < pipelineBufLength; i++) {
+                        audioBuf[i] = (float) pipelineBuf[i];
+                    }
+                    audioOutputBuffer.writeNonBlocking(audioBuf, 0, pipelineBufLength);
+                }
             }
         }
     }
@@ -91,6 +108,10 @@ public class DspThread implements Runnable {
 
     public CircularFloatBuffer getWaterfallOutputBuffer() {
         return waterfallOutputBuffer;
+    }
+
+    public CircularFloatBuffer getAudioOutputBuffer() {
+        return audioOutputBuffer;
     }
 
     private void validatePipeline() {
@@ -119,7 +140,7 @@ public class DspThread implements Runnable {
         }
     }
 
-    private void clearPipeline() {
+    public void clearPipeline() {
         pipelineValid = false;
         pipelineSteps = new ArrayList<>();
     }

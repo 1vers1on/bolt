@@ -10,9 +10,12 @@ import org.lwjgl.opengl.GL13;
 
 import imgui.gl3.ImGuiImplGl3;
 import imgui.glfw.ImGuiImplGlfw;
+import net.ellie.bolt.audio.AudioConsumerThread;
 import net.ellie.bolt.config.Configuration;
 import net.ellie.bolt.contexts.PortAudioContext;
 import net.ellie.bolt.dsp.DspThread;
+import net.ellie.bolt.dsp.pipelineSteps.FrequencyShifter;
+import net.ellie.bolt.dsp.pipelineSteps.demodulators.FmDemodulator;
 import net.ellie.bolt.dsp.windows.HannWindow;
 import net.ellie.bolt.gui.FrequencyWidget;
 import net.ellie.bolt.gui.Panadapter;
@@ -21,7 +24,6 @@ import net.ellie.bolt.gui.Waterfall;
 import net.ellie.bolt.input.CloseableInputSource;
 import net.ellie.bolt.input.InputSourceFactory;
 import net.ellie.bolt.input.InputThread;
-import net.ellie.bolt.jni.portaudio.AudioOutputStream;
 import net.ellie.bolt.jni.portaudio.PortAudioJNI.DeviceInfo;
 import net.ellie.bolt.jni.rtlsdr.RTLSDR;
 import net.ellie.bolt.util.UnitFormatter;
@@ -71,6 +73,7 @@ public class Bolt {
     private CloseableInputSource inputSource;
     private InputThread inputThread;
     private DspThread dspThread;
+    private AudioConsumerThread outputThread;
 
     public static void run() {
         Bolt bolt = Bolt.getInstance();
@@ -153,56 +156,37 @@ public class Bolt {
         waterfall = new Waterfall(1280, 720);
         waterfall.initialize();
         frequencyWidget.initialize();
+    }
 
-        PortAudioContext.getInstance().getPortAudioJNI().initialize();
+    private void stopPipeline() {
+        pipelineRunning = false;
+
+        if (inputThread != null) inputThread.stop();
+        if (dspThread != null) dspThread.stop();
+        if (outputThread != null) outputThread.stop();
+
+        inputThread = null;
+        dspThread = null;
+        outputThread = null;
     }
 
     public void loop() {
         boolean firstTime = true;
-        boolean pipelineRunningPrevious = false;
         float[] fftData = new float[Configuration.getFftSize()];
 
         waterfall.update(fftData);
         panadapter.update(fftData);
 
-        AudioOutputStream output = null;
-
         while (!GLFW.glfwWindowShouldClose(window)) {
             GLFW.glfwPollEvents();
 
-            if (pipelineRunning != pipelineRunningPrevious) {
-                if (pipelineRunning) {
-                    System.out.println("Starting audio output stream");
-                    DeviceInfo deviceInfo = PortAudioContext.getInstance().getDeviceInfoByName(Configuration.getAudioOutputDevice());
-                    output = PortAudioContext.getInstance().getPortAudioJNI().openOutputStream(
-                            deviceInfo.index(),
-                            1,
-                            48000.0,
-                            256
-                    );
-                    output.start();
-                } else {
-                }
-            }
-
-            pipelineRunningPrevious = pipelineRunning;
-
             if (pipelineRunning) {
-                // write random to output for testing
-                byte[] buffer = new byte[255 * 1];
-                for (int i = 0; i < buffer.length; i++) {
-                    buffer[i] = (byte) (Math.random() * 255 - 128);
+                // dspThread.getPipelineSteps().get(0)
+                if (dspThread.getPipelineSteps().get(0) instanceof FrequencyShifter fs) {
+                    double freq = frequencyWidget.getFrequency();
+                    fs.setOffsetHz(freq - Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency());
                 }
-                try {
-                    output.write(buffer, 0, buffer.length);
-                } catch (Exception e) {
-                    logger.error("Failed to write to output stream", e);
-                }
-                try {
-                    dspThread.getWaterfallOutputBuffer().read(fftData, 0, fftData.length);
-                } catch (InterruptedException e) {
-                    logger.error("Main loop interrupted during waterfall read", e);
-                }
+                dspThread.getWaterfallOutputBuffer().readNonBlocking(fftData, 0, fftData.length);
             }
 
             if (pipelineRunning) {
@@ -265,13 +249,17 @@ public class Bolt {
                 inputSource = InputSourceFactory.createInputSource();
                 inputThread = new InputThread(inputSource);
                 dspThread = new DspThread(inputThread.getBuffer(), new HannWindow());
+                dspThread.clearPipeline();
+                dspThread.addPipelineStep(new FrequencyShifter(Configuration.getRtlSdrConfig().getRtlSdrSampleRate()));
+                dspThread.addPipelineStep(new FmDemodulator());
+                dspThread.buildPipeline();
+                outputThread = new AudioConsumerThread(dspThread.getAudioOutputBuffer());
                 inputThread.start();
                 dspThread.start();
+                outputThread.start();
                 pipelineRunning = true;
             } else if (pipelineRunning && !playPauseButton.isPlaying()) {
-                inputThread.stop();
-                dspThread.stop();
-                pipelineRunning = false;
+                stopPipeline();
             }
 
             ImGui.sameLine();
@@ -418,6 +406,10 @@ public class Bolt {
     }
 
     public void stop() {
+        dspThread.stop();
+        inputThread.stop();
+        outputThread.stop();
+
         imGuiGl3.shutdown();
         imGuiGlfw.shutdown();
         ImGui.destroyContext();
