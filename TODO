@@ -1,3 +1,4 @@
 Improve performance with the reading and dsp.
 Figure out how to not have the rtl sdr overflow the input thread read buffer.
 Fix the insane latency
+Remove portaudio eventually

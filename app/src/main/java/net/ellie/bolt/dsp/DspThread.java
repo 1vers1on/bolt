@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import edu.emory.mathcs.jtransforms.fft.DoubleFFT_1D;
 import net.ellie.bolt.config.Configuration;
 import net.ellie.bolt.dsp.buffers.CircularFloatBuffer;
+import net.ellie.bolt.dsp.pipelineSteps.FrequencyShifter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -94,6 +95,7 @@ public class DspThread implements Runnable {
 
     private void validatePipeline() {
         NumberType previousType = inputType;
+        boolean hasFrequencyShift = false;
 
         for (IPipelineStep step : pipelineSteps) {
             var types = step.getInputOutputType();
@@ -105,7 +107,15 @@ public class DspThread implements Runnable {
                         " does not match previous output type " + previousType);
             }
 
+            if (step instanceof FrequencyShifter) {
+                hasFrequencyShift = true;
+            }
+
             previousType = stepOutputType;
+        }
+
+        if (!hasFrequencyShift) {
+            throw new IllegalStateException("Pipeline must contain at least one FrequencyShifter step");
         }
     }
 

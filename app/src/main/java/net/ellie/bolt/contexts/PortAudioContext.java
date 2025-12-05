@@ -1,6 +1,7 @@
 package net.ellie.bolt.contexts;
 
 import net.ellie.bolt.jni.portaudio.PortAudioJNI;
+import net.ellie.bolt.jni.portaudio.PortAudioJNI.DeviceInfo;
 
 public class PortAudioContext {
     private static volatile PortAudioContext instance;
@@ -23,6 +24,16 @@ public class PortAudioContext {
 
     public PortAudioJNI getPortAudioJNI() {
         return pa;
+    }
+
+    public DeviceInfo getDeviceInfoByName(String name) {
+        for (DeviceInfo info : pa.enumerateDevices()) {
+            System.out.println("Found device: " + info.name());
+            if (info.name().toLowerCase().contains(name.toLowerCase())) {
+                return info;
+            }
+        }
+        return null;
     }
 
     public void terminate() {

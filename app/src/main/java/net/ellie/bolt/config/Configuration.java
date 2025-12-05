@@ -3,104 +3,118 @@ package net.ellie.bolt.config;
 import net.ellie.bolt.gui.colormap.Colormaps.Colormap;
 
 public class Configuration {
-    private static Colormap colormap = Colormap.VIRIDIS;
-    private static String inputDevice = "Audio";
-    private static int fftSize = 4096;
-    private static int msaaSamples = 4;
-    private static double waterfallMinDb = -60.0;
-    private static double waterfallMaxDb = 6.0;
-    private static double zoomLevel = 1.0; // TODO: implement zooming
-    private static String audioOutputDevice = "Default";
-    private static int targetFrequency = 101_200_000; // 101.2 MHz
+    private Colormap colormap = Colormap.VIRIDIS;
+    private String inputDevice = "Audio";
+    private int fftSize = 4096;
+    private int msaaSamples = 4;
+    private double waterfallMinDb = -60.0;
+    private double waterfallMaxDb = 6.0;
+    private double zoomLevel = 1.0; // TODO: implement zooming
+    private String audioOutputDevice = "Default";
+    private int targetFrequency = 101_200_000; // 101.2 MHz
 
-    private static RTLSDRConfig rtlSdrConfig = new RTLSDRConfig();
-    private static DummyInputConfig dummyConfig = new DummyInputConfig(2048000);
+    private RTLSDRConfig rtlSdrConfig = new RTLSDRConfig();
+    private DummyInputConfig dummyConfig = new DummyInputConfig(2048000);
+
+    private static ConfigurationSaver saver = ConfigurationSaver.create();
+    public static Configuration INSTANCE = saver.load();
 
     public static Colormap getColormap() {
-        return colormap;
+        return INSTANCE.colormap;
     }
 
     public static void setColormap(Colormap newColormap) {
-        colormap = newColormap;
+        INSTANCE.colormap = newColormap;
+        saver.save(INSTANCE);
     }
 
     public static String getInputDevice() {
-        return inputDevice;
+        return INSTANCE.inputDevice;
     }
 
     public static void setInputDevice(String newInputDevice) {
-        inputDevice = newInputDevice;
+        INSTANCE.inputDevice = newInputDevice;
+        saver.save(INSTANCE);
     }
 
     public static int getFftSize() {
-        return fftSize;
+        return INSTANCE.fftSize;
     }
 
     public static void setFftSize(int newFftSize) {
-        fftSize = newFftSize;
+        INSTANCE.fftSize = newFftSize;
+        saver.save(INSTANCE);
     }
 
     public static int getMsaaSamples() {
-        return msaaSamples;
+        return INSTANCE.msaaSamples;
     }
 
     public static void setMsaaSamples(int newMsaaSamples) {
-        msaaSamples = newMsaaSamples;
+        INSTANCE.msaaSamples = newMsaaSamples;
+        saver.save(INSTANCE);
     }
 
     public static RTLSDRConfig getRtlSdrConfig() {
-        return rtlSdrConfig;
+        return INSTANCE.rtlSdrConfig;
     }
 
     public static void setRtlSdrConfig(RTLSDRConfig newRtlSdrConfig) {
-        rtlSdrConfig = newRtlSdrConfig;
+        INSTANCE.rtlSdrConfig = newRtlSdrConfig;
+        saver.save(INSTANCE);
     }
 
     public static double getWaterfallMinDb() {
-        return waterfallMinDb;
+        return INSTANCE.waterfallMinDb;
     }
 
     public static void setWaterfallMinDb(double newWaterfallMinDb) {
-        waterfallMinDb = newWaterfallMinDb;
+        INSTANCE.waterfallMinDb = newWaterfallMinDb;
+        saver.save(INSTANCE);
     }
 
     public static double getWaterfallMaxDb() {
-        return waterfallMaxDb;
+        return INSTANCE.waterfallMaxDb;
     }
 
     public static void setWaterfallMaxDb(double newWaterfallMaxDb) {
-        waterfallMaxDb = newWaterfallMaxDb;
+        INSTANCE.waterfallMaxDb = newWaterfallMaxDb;
+        saver.save(INSTANCE);
     }
 
     public static DummyInputConfig getDummyConfig() {
-        return dummyConfig;
+        return INSTANCE.dummyConfig;
     }
 
     public static void setDummyConfig(DummyInputConfig newDummyConfig) {
-        dummyConfig = newDummyConfig;
+        INSTANCE.dummyConfig = newDummyConfig;
+        saver.save(INSTANCE);
     }
 
     public static double getZoomLevel() {
-        return zoomLevel;
+        return INSTANCE.zoomLevel;
     }
 
     public static void setZoomLevel(double newZoomLevel) {
-        zoomLevel = newZoomLevel;
+        INSTANCE.zoomLevel = newZoomLevel;
+        saver.save(INSTANCE);
     }
 
     public static String getAudioOutputDevice() {
-        return audioOutputDevice;
+        return INSTANCE.audioOutputDevice;
     }
 
     public static void setAudioOutputDevice(String newAudioOutputDevice) {
-        audioOutputDevice = newAudioOutputDevice;
+        INSTANCE.audioOutputDevice = newAudioOutputDevice;
+        saver.save(INSTANCE);
     }
 
     public static int getTargetFrequency() {
-        return targetFrequency;
+        return INSTANCE.targetFrequency;
     }
 
     public static void setTargetFrequency(int newTargetFrequency) {
-        targetFrequency = newTargetFrequency;
+        INSTANCE.targetFrequency = newTargetFrequency;
+        saver.save(INSTANCE);
     }
 }

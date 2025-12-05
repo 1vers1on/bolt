@@ -21,6 +21,7 @@ import net.ellie.bolt.gui.Waterfall;
 import net.ellie.bolt.input.CloseableInputSource;
 import net.ellie.bolt.input.InputSourceFactory;
 import net.ellie.bolt.input.InputThread;
+import net.ellie.bolt.jni.portaudio.AudioOutputStream;
 import net.ellie.bolt.jni.portaudio.PortAudioJNI.DeviceInfo;
 import net.ellie.bolt.jni.rtlsdr.RTLSDR;
 import net.ellie.bolt.util.UnitFormatter;
@@ -158,15 +159,45 @@ public class Bolt {
 
     public void loop() {
         boolean firstTime = true;
+        boolean pipelineRunningPrevious = false;
         float[] fftData = new float[Configuration.getFftSize()];
 
         waterfall.update(fftData);
         panadapter.update(fftData);
 
+        AudioOutputStream output = null;
+
         while (!GLFW.glfwWindowShouldClose(window)) {
             GLFW.glfwPollEvents();
 
+            if (pipelineRunning != pipelineRunningPrevious) {
+                if (pipelineRunning) {
+                    System.out.println("Starting audio output stream");
+                    DeviceInfo deviceInfo = PortAudioContext.getInstance().getDeviceInfoByName(Configuration.getAudioOutputDevice());
+                    output = PortAudioContext.getInstance().getPortAudioJNI().openOutputStream(
+                            deviceInfo.index(),
+                            1,
+                            48000.0,
+                            256
+                    );
+                    output.start();
+                } else {
+                }
+            }
+
+            pipelineRunningPrevious = pipelineRunning;
+
             if (pipelineRunning) {
+                // write random to output for testing
+                byte[] buffer = new byte[255 * 1];
+                for (int i = 0; i < buffer.length; i++) {
+                    buffer[i] = (byte) (Math.random() * 255 - 128);
+                }
+                try {
+                    output.write(buffer, 0, buffer.length);
+                } catch (Exception e) {
+                    logger.error("Failed to write to output stream", e);
+                }
                 try {
                     dspThread.getWaterfallOutputBuffer().read(fftData, 0, fftData.length);
                 } catch (InterruptedException e) {
