@@ -6,14 +6,16 @@ public class DummyInputSource implements CloseableInputSource {
     private volatile boolean running = true;
     private final int sampleRate;
 
-    private final double baseFreq = 100000.0;
-    private final int harmonics = 2;
+    // Carrier and FM parameters
+    private final double carrierFreq = 1000.0;   // Carrier frequency in Hz
+    private final double modFreq = 100.0;        // FM modulation frequency in Hz
+    private final double freqDeviation = 400.0;  // Frequency deviation for FM in Hz
 
-    private final double[] phases;
+    private double phase = 0.0;      // Carrier phase
+    private double modPhase = 0.0;   // Modulator phase
 
     public DummyInputSource(int sampleRate) {
         this.sampleRate = sampleRate;
-        this.phases = new double[harmonics];
     }
 
     @Override
@@ -21,27 +23,28 @@ public class DummyInputSource implements CloseableInputSource {
         if (!running)
             return 0;
 
+        // Precompute increments
+        final double twoPi = 2.0 * Math.PI;
+        final double modPhaseInc = twoPi * modFreq / sampleRate;
+
         for (int i = 0; i < length; i += 2) {
-            double iAcc = 0.0;
-            double qAcc = 0.0;
+            // Advance modulator phase (100 Hz sine)
+            modPhase += modPhaseInc;
+            if (modPhase >= twoPi)
+                modPhase -= twoPi;
 
-            for (int h = 1; h <= harmonics; h++) {
-                double freq = h * baseFreq;
-                double phaseInc = 2.0 * Math.PI * freq / sampleRate;
+            // Instantaneous frequency = carrier + deviation * sin(modPhase)
+            double instFreq = carrierFreq + freqDeviation * Math.sin(modPhase);
+            double phaseInc = twoPi * instFreq / sampleRate;
 
-                phases[h - 1] += phaseInc;
-                if (phases[h - 1] > Math.PI * 2)
-                    phases[h - 1] -= Math.PI * 2;
+            // Advance carrier phase using instantaneous frequency
+            phase += phaseInc;
+            if (phase >= twoPi)
+                phase -= twoPi;
 
-                double cos = Math.cos(phases[h - 1]);
-                double sin = Math.sin(phases[h - 1]);
-
-                iAcc += cos;
-                qAcc += sin;
-            }
-
-            buffer[offset + i] = (float) iAcc;
-            buffer[offset + i + 1] = (float) qAcc;
+            // Output complex IQ: I = cos(phase), Q = sin(phase)
+            buffer[offset + i] = (float) Math.cos(phase);
+            buffer[offset + i + 1] = (float) Math.sin(phase);
         }
 
         return length;
@@ -59,7 +62,7 @@ public class DummyInputSource implements CloseableInputSource {
 
     @Override
     public String getName() {
-        return "Dummy Comb Input Source";
+    return "Dummy Sine Input Source";
     }
 
     @Override

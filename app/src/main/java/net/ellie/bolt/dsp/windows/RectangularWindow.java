@@ -12,6 +12,11 @@ public class RectangularWindow implements IWindow {
     }
 
     @Override
+    public void applyComplex(double[] buffer, int complexLength) {
+        // rectangular window does not modify the buffer
+    }
+
+    @Override
     public double[] getCoefficients(int length) {
         double[] coeffs = new double[length];
         for (int i = 0; i < length; i++) {

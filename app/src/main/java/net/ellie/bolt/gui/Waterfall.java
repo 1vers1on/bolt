@@ -6,7 +6,10 @@ import java.nio.ByteBuffer;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 
+import imgui.ImDrawList;
 import imgui.ImGui;
+import imgui.ImVec2;
+import imgui.flag.ImGuiCol;
 import net.ellie.bolt.config.Configuration;
 import net.ellie.bolt.gui.colormap.Colormaps;
 
@@ -18,6 +21,10 @@ public class Waterfall implements IGuiElement {
     private ByteBuffer uploadBuffer;
     private final Object lock = new Object();
     private volatile boolean dirty = false;
+    // Zoom factor for centered zoom; 1.0 = no zoom
+    private float zoom = 1.0f;
+    private static final float MIN_ZOOM = 1.0f;
+    private static final float MAX_ZOOM = 8.0f;
 
     public Waterfall(int width, int height) {
         this.width = width;
@@ -43,7 +50,8 @@ public class Waterfall implements IGuiElement {
     }
 
     private void resize(int newWidth, int newHeight) {
-        if (newWidth <= 0 || newHeight <= 0) return;
+        if (newWidth <= 0 || newHeight <= 0)
+            return;
 
         synchronized (lock) {
             this.width = newWidth;
@@ -62,7 +70,8 @@ public class Waterfall implements IGuiElement {
 
     public void update(float[] fftData) {
         synchronized (lock) {
-            if (pixelData == null || width <= 0 || height <= 0) return;
+            if (pixelData == null || width <= 0 || height <= 0)
+                return;
 
             int rowStride = width * 3;
             if (pixelData.length > rowStride) {
@@ -131,6 +140,91 @@ public class Waterfall implements IGuiElement {
             }
         }
 
-        ImGui.image(waterfallTextureId, (float) width, (float) height);
+        float invZoom = 1.0f / Math.max(MIN_ZOOM, zoom);
+        float halfRange = 0.5f * invZoom;
+        float uMin = 0.5f - halfRange;
+        float vMin = 0.5f - halfRange;
+        float uMax = 0.5f + halfRange;
+        float vMax = 0.5f + halfRange;
+        ImGui.image(waterfallTextureId, (float) width, (float) height, uMin, vMin, uMax, vMax);
+
+        int sampleRate = Configuration.getInputSampleRate();
+        int centerFreq = Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency();
+        int targetFreq = Configuration.getTargetFrequency();
+
+        float spanHz = sampleRate / Math.max(MIN_ZOOM, zoom);
+        float startHz = centerFreq - spanHz / 2.0f;
+
+        float clampedTarget = Math.max(startHz, Math.min(centerFreq + spanHz / 2.0f, targetFreq));
+        float norm = (clampedTarget - startHz) / spanHz;
+        float xLocal = norm * (width - 1);
+
+        ImVec2 min = ImGui.getItemRectMin();
+        ImVec2 max = ImGui.getItemRectMax();
+        float xScreen = min.x + xLocal + 0.5f;
+        float xLine = (float) Math.floor(xScreen) + 0.5f;
+        float yTop = min.y;
+        float yBottom = max.y;
+
+        ImDrawList dl = ImGui.getWindowDrawList();
+
+        int lineColor = ImGui.getColorU32(ImGui.getStyle().getColor(ImGuiCol.Text));
+        dl.addLine(xLine, yTop, xLine, yBottom, lineColor, 2.0f);
+        float handleHalf = 6.0f; // 12px wide
+        float rectLeft = (float) Math.floor(xScreen - handleHalf);
+        float rectRight = (float) Math.floor(xScreen + handleHalf);
+        float rectBottom = (float) Math.floor(yBottom);
+        float rectTop = rectBottom - 12.0f; // exact 12px height
+        dl.addRectFilled(rectLeft, rectTop, rectRight, rectBottom,
+                ImGui.getColorU32(ImGui.getStyle().getColor(ImGuiCol.FrameBgActive)));
+
+        int bwStartOffset = Configuration.getBandwidthStartOffset();
+        int bwEndOffset = Configuration.getBandwidthEndOffset();
+
+        float bwStartHz = targetFreq + bwStartOffset;
+        float bwEndHz = targetFreq + bwEndOffset;
+
+        float bwMinHz = Math.min(bwStartHz, bwEndHz);
+        float bwMaxHz = Math.max(bwStartHz, bwEndHz);
+
+        bwMinHz = Math.max(startHz, Math.min(startHz + spanHz, bwMinHz));
+        bwMaxHz = Math.max(startHz, Math.min(startHz + spanHz, bwMaxHz));
+
+        float bwMinNorm = (bwMinHz - startHz) / spanHz;
+        float bwMaxNorm = (bwMaxHz - startHz) / spanHz;
+        float xLocalStart = bwMinNorm * (width - 1);
+        float xLocalEnd = bwMaxNorm * (width - 1);
+
+        float xScreenStart = min.x + xLocalStart + 0.5f;
+        float xScreenEnd = min.x + xLocalEnd + 0.5f;
+        float xHandleStart = (float) Math.floor(xScreenStart) + 0.5f;
+        float xHandleEnd = (float) Math.floor(xScreenEnd) + 0.5f;
+
+        float handleInset = 1.0f;
+        float bandTop = rectTop - handleInset;
+        float bandBottom = rectBottom + handleInset;
+        int handleColor = ImGui.getColorU32(ImGui.getStyle().getColor(ImGuiCol.CheckMark));
+
+        dl.addLine(xHandleStart, bandTop, xHandleEnd, bandTop, handleColor, 2.0f);
+        dl.addLine(xHandleStart, bandBottom, xHandleEnd, bandBottom, handleColor, 2.0f);
+
+        dl.addLine(xHandleStart, bandTop, xHandleStart, bandBottom, handleColor, 2.0f);
+        dl.addLine(xHandleEnd, bandTop, xHandleEnd, bandBottom, handleColor, 2.0f);
+
+        boolean hovered = ImGui.isItemHovered();
+        if (hovered) {
+            float wheel = ImGui.getIO().getMouseWheel();
+            if (wheel != 0.0f) {
+                float newZoom = zoom * (float) Math.pow(1.1f, wheel);
+                zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+            }
+        }
+        if (hovered && ImGui.isMouseDown(0)) {
+            ImVec2 mousePos = ImGui.getMousePos();
+            float xWithin = Math.max(0f, Math.min(width - 1, mousePos.x - min.x - 0.5f));
+            float newNorm = (width > 1) ? (xWithin / (width - 1)) : 0f;
+            int newFreq = (int) (startHz + newNorm * spanHz);
+            Configuration.setTargetFrequency(newFreq);
+        }
     }
 }

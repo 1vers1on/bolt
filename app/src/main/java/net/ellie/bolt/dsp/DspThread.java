@@ -18,9 +18,6 @@ public class DspThread implements Runnable {
     private final CircularFloatBuffer inputBuffer;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
-    private DoubleFFT_1D fft;
-    private IWindow windowFunction;
-    private CircularFloatBuffer waterfallOutputBuffer;
     private CircularFloatBuffer audioOutputBuffer;
 
     private List<IPipelineStep> pipelineSteps = new ArrayList<>();
@@ -29,12 +26,12 @@ public class DspThread implements Runnable {
 
     private boolean pipelineValid = false;
 
-    public DspThread(CircularFloatBuffer inputBuffer, IWindow windowFunction) {
+    private final int inputBufferSize;
+
+    public DspThread(CircularFloatBuffer inputBuffer, int inputBufferSize) {
         this.inputBuffer = inputBuffer;
-        this.fft = new DoubleFFT_1D(Configuration.getFftSize());
-        this.waterfallOutputBuffer = new CircularFloatBuffer(Configuration.getFftSize());
         this.audioOutputBuffer = new CircularFloatBuffer(Configuration.getAudioBufferSize());
-        this.windowFunction = windowFunction;
+        this.inputBufferSize = inputBufferSize;
     }
 
     public void start() {
@@ -48,42 +45,16 @@ public class DspThread implements Runnable {
         running.set(true);
 
         int n = Configuration.getFftSize();
-        double[] fftBuf = new double[n * 2];
+        double[] pipelineBuf = new double[inputBufferSize];
 
         while (running.get()) {
             try {
-                inputBuffer.read(fftBuf, 0, n * 2);
+                inputBuffer.read(pipelineBuf, 0, inputBufferSize);
             } catch (InterruptedException e) {
                 running.set(false);
                 logger.error("DspThread interrupted during read", e);
                 break;
             }
-
-            double[] pipelineBuf = fftBuf;
-
-            windowFunction.apply(fftBuf, n);
-
-            fft.complexForward(fftBuf);
-
-            double[] magnitude = new double[n];
-            double gain = windowFunction.getGainCompensation(n);
-            double dbRange = Configuration.getWaterfallMaxDb() - Configuration.getWaterfallMinDb();
-            for (int i = 0; i < n; i++) {
-                double real = fftBuf[2 * i];
-                double imag = fftBuf[2 * i + 1];
-                magnitude[i] = 10.0 * Math.log10(real * real + imag * imag) + 20.0 * Math.log10(gain);
-
-                double normalizedDb = (magnitude[i] - Configuration.getWaterfallMinDb()) / dbRange;
-                normalizedDb = Math.max(0.0, Math.min(1.0, normalizedDb));
-                magnitude[i] = (float) normalizedDb;
-            }
-
-            double[] shifted = new double[n];
-            int half = n / 2;
-            System.arraycopy(magnitude, half, shifted, 0, n - half);
-            System.arraycopy(magnitude, 0, shifted, n - half, half);
-
-            waterfallOutputBuffer.writeNonBlocking(shifted, 0, n);
 
             if (pipelineValid) {
                 int pipelineBufLength = pipelineBuf.length;
@@ -102,12 +73,17 @@ public class DspThread implements Runnable {
         }
     }
 
-    public void stop() {
-        running.set(false);
+    public IDemodulator getDemodulator() {
+        for (IPipelineStep step : pipelineSteps) {
+            if (step instanceof IDemodulator) {
+                return (IDemodulator) step;
+            }
+        }
+        return null;
     }
 
-    public CircularFloatBuffer getWaterfallOutputBuffer() {
-        return waterfallOutputBuffer;
+    public void stop() {
+        running.set(false);
     }
 
     public CircularFloatBuffer getAudioOutputBuffer() {
@@ -133,10 +109,6 @@ public class DspThread implements Runnable {
             }
 
             previousType = stepOutputType;
-        }
-
-        if (!hasFrequencyShift) {
-            throw new IllegalStateException("Pipeline must contain at least one FrequencyShifter step");
         }
     }
 

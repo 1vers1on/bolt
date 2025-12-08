@@ -23,6 +23,16 @@ public class BlackmanHarrisWindow implements IWindow {
     }
 
     @Override
+    public void applyComplex(double[] buffer, int complexLength) {
+        double[] coeffs = getCoefficients(complexLength);
+        for (int i = 0, bi = 0; i < complexLength; i++, bi += 2) {
+            double w = coeffs[i];
+            buffer[bi] *= w;      // real
+            buffer[bi + 1] *= w;  // imag
+        }
+    }
+
+    @Override
     public double[] getCoefficients(int length) {
         return CACHE.computeIfAbsent(length, len -> {
             double[] coeffs = new double[len];

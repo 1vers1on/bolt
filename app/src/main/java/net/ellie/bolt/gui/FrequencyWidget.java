@@ -5,7 +5,7 @@ import imgui.flag.ImGuiCol;
 import net.ellie.bolt.Fonts;
 
 public class FrequencyWidget implements IGuiElement {
-    private int frequency = 101200000;
+    private int frequency = 101500000;
 
     @Override
     public void initialize() {

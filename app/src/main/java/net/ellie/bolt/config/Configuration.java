@@ -13,6 +13,9 @@ public class Configuration {
     private String audioOutputDevice = "Default";
     private int targetFrequency = 101_500_000; // 101.5 MHz
 
+    private int bandwidthStartOffset = 0;
+    private int bandwidthEndOffset = 3000;
+
     private RTLSDRConfig rtlSdrConfig = new RTLSDRConfig();
     private DummyInputConfig dummyConfig = new DummyInputConfig(2048000);
 
@@ -21,6 +24,30 @@ public class Configuration {
 
     private static ConfigurationSaver saver = ConfigurationSaver.create();
     public static Configuration INSTANCE = saver.load();
+
+    public static int getInputSampleRate() {
+        if (INSTANCE.inputDevice.equals("RTL-SDR")) {
+            return INSTANCE.rtlSdrConfig.getRtlSdrSampleRate();
+        } else if (INSTANCE.inputDevice.equals("Dummy")) {
+            return INSTANCE.dummyConfig.getSampleRate();
+        } else {
+            return INSTANCE.sampleRate;
+        }
+    }
+
+    public static int getBandwidthStartOffset() {
+        return INSTANCE.bandwidthStartOffset;
+    }
+
+    public static int getBandwidthEndOffset() {
+        return INSTANCE.bandwidthEndOffset;
+    }
+
+    public static void setBandwidthOffsets(int startOffset, int endOffset) {
+        INSTANCE.bandwidthStartOffset = startOffset;
+        INSTANCE.bandwidthEndOffset = endOffset;
+        saver.save(INSTANCE);
+    }
 
     public static Colormap getColormap() {
         return INSTANCE.colormap;

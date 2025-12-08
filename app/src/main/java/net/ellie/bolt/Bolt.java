@@ -1,6 +1,7 @@
 package net.ellie.bolt;
 
 import java.io.IOException;
+import java.io.ObjectInputFilter.Config;
 import java.nio.ByteBuffer;
 
 import org.lwjgl.glfw.*;
@@ -14,8 +15,19 @@ import net.ellie.bolt.audio.AudioConsumerThread;
 import net.ellie.bolt.config.Configuration;
 import net.ellie.bolt.contexts.PortAudioContext;
 import net.ellie.bolt.dsp.DspThread;
+import net.ellie.bolt.dsp.FIRFilterDesigns;
+import net.ellie.bolt.dsp.IDemodulator;
+import net.ellie.bolt.dsp.IIRFilterDesigns;
+import net.ellie.bolt.dsp.NumberType;
+import net.ellie.bolt.dsp.buffers.CircularFloatBuffer;
+import net.ellie.bolt.dsp.pipelineSteps.Decimator;
+import net.ellie.bolt.dsp.pipelineSteps.DummySineStep;
+import net.ellie.bolt.dsp.pipelineSteps.FIRFilter;
 import net.ellie.bolt.dsp.pipelineSteps.FrequencyShifter;
+import net.ellie.bolt.dsp.pipelineSteps.IIRFilter;
+import net.ellie.bolt.dsp.pipelineSteps.RealFIRFilter;
 import net.ellie.bolt.dsp.pipelineSteps.demodulators.FmDemodulator;
+import net.ellie.bolt.dsp.pipelineSteps.demodulators.SSBDemodulator;
 import net.ellie.bolt.dsp.windows.HannWindow;
 import net.ellie.bolt.gui.FrequencyWidget;
 import net.ellie.bolt.gui.Panadapter;
@@ -34,6 +46,8 @@ import imgui.ImGuiIO;
 import imgui.ImGuiStyle;
 import imgui.ImVec2;
 import imgui.extension.implot.ImPlot;
+import imgui.extension.implot.flag.ImPlotFlags;
+import imgui.extension.implot.flag.ImPlotStyleVar;
 import imgui.type.ImInt;
 import imgui.flag.ImGuiConfigFlags;
 import imgui.flag.ImGuiDir;
@@ -74,6 +88,12 @@ public class Bolt {
     private InputThread inputThread;
     private DspThread dspThread;
     private AudioConsumerThread outputThread;
+
+    private CircularFloatBuffer waterfallBuffer;
+
+    private boolean testModeEnabled = false;
+    private float[] testInputFft;
+    private float[] testOutputFft;
 
     public static void run() {
         Bolt bolt = Bolt.getInstance();
@@ -156,6 +176,7 @@ public class Bolt {
         waterfall = new Waterfall(1280, 720);
         waterfall.initialize();
         frequencyWidget.initialize();
+        waterfallBuffer = new CircularFloatBuffer(Configuration.getFftSize() * 2);
     }
 
     private void stopPipeline() {
@@ -164,6 +185,13 @@ public class Bolt {
         if (inputThread != null) inputThread.stop();
         if (dspThread != null) dspThread.stop();
         if (outputThread != null) outputThread.stop();
+
+        // Reset pipeline step states before nulling
+        if (dspThread != null) {
+            for (var step : dspThread.getPipelineSteps()) {
+                step.reset();
+            }
+        }
 
         inputThread = null;
         dspThread = null;
@@ -177,21 +205,33 @@ public class Bolt {
         waterfall.update(fftData);
         panadapter.update(fftData);
 
+        int previousFrequency = Configuration.getTargetFrequency();
+
         while (!GLFW.glfwWindowShouldClose(window)) {
             GLFW.glfwPollEvents();
 
             if (pipelineRunning) {
-                // dspThread.getPipelineSteps().get(0)
                 if (dspThread.getPipelineSteps().get(0) instanceof FrequencyShifter fs) {
-                    double freq = frequencyWidget.getFrequency();
+                    double freq = Configuration.getTargetFrequency();
                     fs.setOffsetHz(freq - Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency());
                 }
-                dspThread.getWaterfallOutputBuffer().readNonBlocking(fftData, 0, fftData.length);
-            }
+                waterfallBuffer.readNonBlocking(fftData, 0, fftData.length);
 
-            if (pipelineRunning) {
                 waterfall.update(fftData);
                 panadapter.update(fftData);
+            }
+
+            if (previousFrequency != Configuration.getTargetFrequency()) {
+                previousFrequency = Configuration.getTargetFrequency();
+                if (dspThread != null) {
+                    IDemodulator demod = dspThread.getDemodulator();
+                    if (demod != null) {
+                        demod.setFrequencyOffsetHz(
+                            Configuration.getTargetFrequency() - Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency()
+                        );
+                        System.out.println("Set frequency offset to " + (Configuration.getTargetFrequency() - Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency()) + " Hz");
+                    }
+                }
             }
 
             imGuiGlfw.newFrame();
@@ -248,11 +288,40 @@ public class Bolt {
             if (!pipelineRunning && playPauseButton.isPlaying()) {
                 inputSource = InputSourceFactory.createInputSource();
                 inputThread = new InputThread(inputSource);
-                dspThread = new DspThread(inputThread.getBuffer(), new HannWindow());
+                dspThread = new DspThread(inputThread.getBuffer(), 4096);
                 dspThread.clearPipeline();
-                dspThread.addPipelineStep(new FrequencyShifter(Configuration.getRtlSdrConfig().getRtlSdrSampleRate()));
-                dspThread.addPipelineStep(new FmDemodulator());
+
+                int inputSampleRate = inputSource.getSampleRate();
+                int outputSampleRate = Configuration.getSampleRate();
+                int decimationFactor = inputSampleRate / outputSampleRate;
+
+                dspThread.addPipelineStep(new net.ellie.bolt.dsp.pipelineSteps.Waterfall(
+                        waterfallBuffer,
+                        new HannWindow(),
+                        Configuration.getFftSize()
+                ));
+
+                double[][] iir = IIRFilterDesigns.butterworthLowpass2(
+                    inputSampleRate,
+                    3000.0
+                );
+                
+                dspThread.addPipelineStep(new IIRFilter(iir[0], iir[1]));
+                
+                dspThread.addPipelineStep(new SSBDemodulator(true, inputSampleRate, Configuration.getTargetFrequency() - Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency()));
+
+                if (decimationFactor > 1) {
+                    dspThread.addPipelineStep(new Decimator(decimationFactor, inputSampleRate));
+                }
+
+                dspThread.addPipelineStep(new RealFIRFilter(FIRFilterDesigns.designBlackmanLowPass(
+                        101,
+                        outputSampleRate,
+                        3000.0
+                )));
+
                 dspThread.buildPipeline();
+
                 outputThread = new AudioConsumerThread(dspThread.getAudioOutputBuffer());
                 inputThread.start();
                 dspThread.start();
