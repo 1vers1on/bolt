@@ -6,5 +6,6 @@ public enum PipelineStepType {
     FILTER,
     DEMODULATOR,
     DECIMATOR,
-    OTHER
+    OTHER,
+    VISUALIZATION
 }

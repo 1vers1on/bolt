@@ -36,6 +36,15 @@ public class PortAudioContext {
         return null;
     }
 
+    public DeviceInfo getDeviceInfoByIndex(int index) {
+        for (DeviceInfo info : pa.enumerateDevices()) {
+            if (info.index() == index) {
+                return info;
+            }
+        }
+        return null;
+    }
+
     public void terminate() {
         pa.terminate();
         instance = null;

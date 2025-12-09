@@ -4,6 +4,10 @@ import java.io.IOException;
 import java.io.ObjectInputFilter.Config;
 import java.nio.ByteBuffer;
 
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Line;
+import javax.sound.sampled.Mixer;
+
 import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
@@ -15,18 +19,14 @@ import net.ellie.bolt.audio.AudioConsumerThread;
 import net.ellie.bolt.config.Configuration;
 import net.ellie.bolt.contexts.PortAudioContext;
 import net.ellie.bolt.dsp.DspThread;
-import net.ellie.bolt.dsp.FIRFilterDesigns;
 import net.ellie.bolt.dsp.IDemodulator;
 import net.ellie.bolt.dsp.IIRFilterDesigns;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.buffers.CircularFloatBuffer;
 import net.ellie.bolt.dsp.pipelineSteps.Decimator;
-import net.ellie.bolt.dsp.pipelineSteps.DummySineStep;
-import net.ellie.bolt.dsp.pipelineSteps.FIRFilter;
 import net.ellie.bolt.dsp.pipelineSteps.FrequencyShifter;
 import net.ellie.bolt.dsp.pipelineSteps.IIRFilter;
-import net.ellie.bolt.dsp.pipelineSteps.RealFIRFilter;
-import net.ellie.bolt.dsp.pipelineSteps.demodulators.FmDemodulator;
+import net.ellie.bolt.dsp.pipelineSteps.RealWaterfall;
 import net.ellie.bolt.dsp.pipelineSteps.demodulators.SSBDemodulator;
 import net.ellie.bolt.dsp.windows.HannWindow;
 import net.ellie.bolt.gui.FrequencyWidget;
@@ -46,8 +46,6 @@ import imgui.ImGuiIO;
 import imgui.ImGuiStyle;
 import imgui.ImVec2;
 import imgui.extension.implot.ImPlot;
-import imgui.extension.implot.flag.ImPlotFlags;
-import imgui.extension.implot.flag.ImPlotStyleVar;
 import imgui.type.ImInt;
 import imgui.flag.ImGuiConfigFlags;
 import imgui.flag.ImGuiDir;
@@ -91,10 +89,6 @@ public class Bolt {
 
     private CircularFloatBuffer waterfallBuffer;
 
-    private boolean testModeEnabled = false;
-    private float[] testInputFft;
-    private float[] testOutputFft;
-
     public static void run() {
         Bolt bolt = Bolt.getInstance();
         bolt.start();
@@ -103,9 +97,9 @@ public class Bolt {
     }
 
     public void start() {
-       if (!GLFW.glfwInit()) {
-           throw new RuntimeException("Failed to initialize GLFW");
-       }
+        if (!GLFW.glfwInit()) {
+            throw new RuntimeException("Failed to initialize GLFW");
+        }
 
         GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3);
         GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -177,16 +171,20 @@ public class Bolt {
         waterfall.initialize();
         frequencyWidget.initialize();
         waterfallBuffer = new CircularFloatBuffer(Configuration.getFftSize() * 2);
+        PortAudioContext.getInstance().getPortAudioJNI().initialize();
     }
 
     private void stopPipeline() {
+        logger.info("Stopping pipeline");
         pipelineRunning = false;
 
-        if (inputThread != null) inputThread.stop();
-        if (dspThread != null) dspThread.stop();
-        if (outputThread != null) outputThread.stop();
+        if (inputThread != null)
+            inputThread.stop();
+        if (dspThread != null)
+            dspThread.stop();
+        if (outputThread != null)
+            outputThread.stop();
 
-        // Reset pipeline step states before nulling
         if (dspThread != null) {
             for (var step : dspThread.getPipelineSteps()) {
                 step.reset();
@@ -196,6 +194,11 @@ public class Bolt {
         inputThread = null;
         dspThread = null;
         outputThread = null;
+    }
+
+    private boolean isInputSourceDecodeOnly() {
+        String device = Configuration.getInputDevice();
+        return device.equals("Audio") || device.equals("File");
     }
 
     public void loop() {
@@ -227,9 +230,14 @@ public class Bolt {
                     IDemodulator demod = dspThread.getDemodulator();
                     if (demod != null) {
                         demod.setFrequencyOffsetHz(
-                            Configuration.getTargetFrequency() - Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency()
-                        );
-                        System.out.println("Set frequency offset to " + (Configuration.getTargetFrequency() - Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency()) + " Hz");
+                                Configuration.getTargetFrequency()
+                                        - Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency());
+                        System.out
+                                .println(
+                                        "Set frequency offset to "
+                                                + (Configuration.getTargetFrequency()
+                                                        - Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency())
+                                                + " Hz");
                     }
                 }
             }
@@ -259,21 +267,22 @@ public class Bolt {
                 ImGui.dockSpace(dockspaceId);
                 imgui.internal.ImGui.dockBuilderRemoveNode(dockspaceId);
                 imgui.internal.ImGui.dockBuilderAddNode(dockspaceId, imgui.internal.flag.ImGuiDockNodeFlags.DockSpace);
-                imgui.internal.ImGui.dockBuilderSetNodeSize(dockspaceId, ImGui.getMainViewport().getSizeX(), ImGui.getMainViewport().getSizeY());
+                imgui.internal.ImGui.dockBuilderSetNodeSize(dockspaceId, ImGui.getMainViewport().getSizeX(),
+                        ImGui.getMainViewport().getSizeY());
 
                 ImInt topId = new ImInt();
                 ImInt bottomId = new ImInt();
                 ImInt sidebarId = new ImInt();
                 ImInt mainId = new ImInt();
-                
+
                 imgui.internal.ImGui.dockBuilderSplitNode(dockspaceId, ImGuiDir.Up, 0.2f, topId, bottomId);
-                
+
                 imgui.internal.ImGui.dockBuilderSplitNode(bottomId.get(), ImGuiDir.Left, 0.25f, sidebarId, mainId);
 
                 imgui.internal.ImGui.dockBuilderDockWindow("TopBar", topId.get());
                 imgui.internal.ImGui.dockBuilderDockWindow("Sidebar", sidebarId.get());
                 imgui.internal.ImGui.dockBuilderDockWindow("Waterfall", mainId.get());
-                
+
                 imgui.internal.ImGui.dockBuilderFinish(dockspaceId);
                 firstTime = false;
             }
@@ -286,46 +295,54 @@ public class Bolt {
 
             playPauseButton.render();
             if (!pipelineRunning && playPauseButton.isPlaying()) {
+                logger.info("Starting pipeline");
                 inputSource = InputSourceFactory.createInputSource();
                 inputThread = new InputThread(inputSource);
-                dspThread = new DspThread(inputThread.getBuffer(), 4096);
+                dspThread = new DspThread(inputThread.getBuffer(), 4096,
+                        inputSource.isComplex() ? NumberType.COMPLEX : NumberType.REAL);
                 dspThread.clearPipeline();
 
-                int inputSampleRate = inputSource.getSampleRate();
-                int outputSampleRate = Configuration.getSampleRate();
-                int decimationFactor = inputSampleRate / outputSampleRate;
+                if (inputSource.isComplex()) {
+                    int inputSampleRate = inputSource.getSampleRate();
+                    int outputSampleRate = Configuration.getSampleRate();
+                    int decimationFactor = inputSampleRate / outputSampleRate;
 
-                dspThread.addPipelineStep(new net.ellie.bolt.dsp.pipelineSteps.Waterfall(
-                        waterfallBuffer,
-                        new HannWindow(),
-                        Configuration.getFftSize()
-                ));
+                    dspThread.addPipelineStep(new net.ellie.bolt.dsp.pipelineSteps.Waterfall(
+                            waterfallBuffer,
+                            new HannWindow(),
+                            Configuration.getFftSize()));
 
-                double[][] iir = IIRFilterDesigns.butterworthLowpass2(
-                    inputSampleRate,
-                    3000.0
-                );
-                
-                dspThread.addPipelineStep(new IIRFilter(iir[0], iir[1]));
-                
-                dspThread.addPipelineStep(new SSBDemodulator(true, inputSampleRate, Configuration.getTargetFrequency() - Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency()));
+                    double[][] iir = IIRFilterDesigns.butterworthLowpass2(
+                            inputSampleRate,
+                            3000.0);
 
-                if (decimationFactor > 1) {
-                    dspThread.addPipelineStep(new Decimator(decimationFactor, inputSampleRate));
+                    dspThread.addPipelineStep(new IIRFilter(iir[0], iir[1]));
+
+                    dspThread.addPipelineStep(
+                            new SSBDemodulator(true, inputSampleRate, Configuration.getTargetFrequency()
+                                    - Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency()));
+
+                    if (decimationFactor > 1) {
+                        dspThread.addPipelineStep(new Decimator(decimationFactor, inputSampleRate));
+                    }
+
+                    dspThread.buildPipeline();
+
+                    outputThread = new AudioConsumerThread(dspThread.getAudioOutputBuffer());
+                    inputThread.start();
+                    dspThread.start();
+                    outputThread.start();
+                } else {
+                    dspThread.addPipelineStep(new RealWaterfall(
+                            waterfallBuffer,
+                            new HannWindow(),
+                            Configuration.getFftSize()));
+
+                    dspThread.buildPipeline();
+
+                    inputThread.start();
+                    dspThread.start();
                 }
-
-                dspThread.addPipelineStep(new RealFIRFilter(FIRFilterDesigns.designBlackmanLowPass(
-                        101,
-                        outputSampleRate,
-                        3000.0
-                )));
-
-                dspThread.buildPipeline();
-
-                outputThread = new AudioConsumerThread(dspThread.getAudioOutputBuffer());
-                inputThread.start();
-                dspThread.start();
-                outputThread.start();
                 pipelineRunning = true;
             } else if (pipelineRunning && !playPauseButton.isPlaying()) {
                 stopPipeline();
@@ -334,29 +351,43 @@ public class Bolt {
             ImGui.sameLine();
             ImGui.dummy(10, 0);
             ImGui.sameLine();
-            
+
             frequencyWidget.render();
 
             ImVec2 parent_pos = ImGui.getWindowPos();
             ImVec2 parent_size = ImGui.getWindowSize();
 
             ImVec2 new_window_pos = new ImVec2(
-                parent_pos.x,
-                parent_pos.y + parent_size.y
-            );
+                    parent_pos.x,
+                    parent_pos.y + parent_size.y);
 
             ImGui.setNextWindowPos(new_window_pos);
             ImGui.end();
 
-            ImGui.begin("LeftSidebar", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize);
+            ImGui.begin("LeftSidebar",
+                    ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize);
             ImGui.setWindowSize(250, ImGui.getMainViewport().getSizeY() - parent_size.y);
 
             if (ImGui.collapsingHeader("Input Source", ImGuiTreeNodeFlags.DefaultOpen)) {
                 if (ImGui.beginCombo("##inputsource", Configuration.getInputDevice())) {
-                    if (ImGui.selectable("Audio", Configuration.getInputDevice().equals("Audio"))) {
-                        Configuration.setInputDevice("Audio");
+                    if (ImGui.selectable("PortAudio", Configuration.getInputDevice().equals("PortAudio"))) {
+                        Configuration.setInputDevice("PortAudio");
                     }
-                    if (Configuration.getInputDevice().equals("Audio")) {
+                    if (Configuration.getInputDevice().equals("PortAudio")) {
+                        ImGui.setItemDefaultFocus();
+                    }
+
+                    if (ImGui.selectable("Javax Audio", Configuration.getInputDevice().equals("JavaxAudio"))) {
+                        Configuration.setInputDevice("JavaxAudio");
+                    }
+                    if (Configuration.getInputDevice().equals("JavaxAudio")) {
+                        ImGui.setItemDefaultFocus();
+                    }
+
+                    if (ImGui.selectable("OpenAL", Configuration.getInputDevice().equals("OpenAL"))) {
+                        Configuration.setInputDevice("OpenAL");
+                    }
+                    if (Configuration.getInputDevice().equals("OpenAL")) {
                         ImGui.setItemDefaultFocus();
                     }
 
@@ -386,11 +417,14 @@ public class Bolt {
 
                 ImGui.beginDisabled(pipelineRunning);
                 if (Configuration.getInputDevice().equals("RTL-SDR")) {
-                    if (ImGui.beginCombo("##RTLSDRDevice", RTLSDR.getDeviceName(Configuration.getRtlSdrConfig().getRtlSdrDeviceIndex()))) { // TODO: Dont poll every frame for device name
+                    // TODO: Dont poll every frame for device name
+                    if (ImGui.beginCombo("##RTLSDRDevice",
+                            RTLSDR.getDeviceName(Configuration.getRtlSdrConfig().getRtlSdrDeviceIndex()))) {
                         int deviceCount = RTLSDR.getDeviceCount();
                         for (int i = 0; i < deviceCount; i++) {
                             String deviceName = RTLSDR.getDeviceName(i);
-                            if (ImGui.selectable(deviceName, Configuration.getRtlSdrConfig().getRtlSdrDeviceIndex() == i)) {
+                            if (ImGui.selectable(deviceName,
+                                    Configuration.getRtlSdrConfig().getRtlSdrDeviceIndex() == i)) {
                                 Configuration.getRtlSdrConfig().setRtlSdrDeviceIndex(i);
                             }
                             if (Configuration.getRtlSdrConfig().getRtlSdrDeviceIndex() == i) {
@@ -402,9 +436,11 @@ public class Bolt {
 
                     ImGui.text("Sample Rate");
 
-                    if (ImGui.beginCombo("##SampleRate", UnitFormatter.formatFrequency(Configuration.getRtlSdrConfig().getRtlSdrSampleRate()))) {
+                    if (ImGui.beginCombo("##SampleRate",
+                            UnitFormatter.formatFrequency(Configuration.getRtlSdrConfig().getRtlSdrSampleRate()))) {
                         for (int rate : Configuration.getRtlSdrConfig().getRtlSdrSampleRates()) {
-                            if (ImGui.selectable(UnitFormatter.formatFrequency(rate), Configuration.getRtlSdrConfig().getRtlSdrSampleRate() == rate)) {
+                            if (ImGui.selectable(UnitFormatter.formatFrequency(rate),
+                                    Configuration.getRtlSdrConfig().getRtlSdrSampleRate() == rate)) {
                                 Configuration.getRtlSdrConfig().setRtlSdrSampleRate(rate);
                             }
                             if (Configuration.getRtlSdrConfig().getRtlSdrSampleRate() == rate) {
@@ -414,14 +450,86 @@ public class Bolt {
                         ImGui.endCombo();
                     }
                 }
+
+                if (PortAudioContext.getInstance()
+                            .getDeviceInfoByIndex(Configuration.getPortAudioConfig().getDeviceIndex()) == null) {
+                    Configuration.getPortAudioConfig().setDeviceIndex(0);
+                }
+
+                if (Configuration.getInputDevice().equals("PortAudio")) {
+                    ImGui.text("Sample Rate");
+                    if (ImGui.beginCombo("##AudioSampleRate",
+                            UnitFormatter.formatFrequency(Configuration.getPortAudioConfig().getSampleRate()))) {
+                        int[] commonRates = new int[] { 8000, 16000, 22050, 32000, 44100, 48000, 96000, 192000 };
+                        for (int rate : commonRates) {
+                            if (PortAudioContext.getInstance().getPortAudioJNI()
+                                    .isFormatSupported(
+                                            Configuration.getPortAudioConfig().getDeviceIndex(),
+                                            Configuration.getPortAudioConfig().getChannelCount(),
+                                            rate)) {
+                                if (ImGui.selectable(UnitFormatter.formatFrequency(rate),
+                                        Configuration.getPortAudioConfig().getSampleRate() == rate)) {
+                                    Configuration.getPortAudioConfig().setSampleRate(rate);
+                                }
+                                if (Configuration.getPortAudioConfig().getSampleRate() == rate) {
+                                    ImGui.setItemDefaultFocus();
+                                }
+                            }
+                        }
+                        ImGui.endCombo();
+                    }
+
+                    ImGui.text("Input Device");
+                    if (ImGui.beginCombo("##AudioInputDevice", PortAudioContext.getInstance()
+                            .getDeviceInfoByIndex(Configuration.getPortAudioConfig().getDeviceIndex()).name())) {
+                        PortAudioContext portAudioContext = PortAudioContext.getInstance();
+                        for (DeviceInfo device : portAudioContext.getPortAudioJNI().enumerateDevices()) {
+                            if (ImGui.selectable(device.name(),
+                                    Configuration.getPortAudioConfig().getDeviceIndex() == device.index())) {
+                                logger.info("Selected PortAudio input device with properties: " + device);
+                                Configuration.getPortAudioConfig().setDeviceIndex(device.index());
+                                Configuration.getPortAudioConfig().setChannelCount(1);
+                                Configuration.getPortAudioConfig().setSampleRate((int)device.defaultSampleRate());
+                            }
+                            if (Configuration.getPortAudioConfig().getDeviceIndex() == device.index()) {
+                                ImGui.setItemDefaultFocus();
+                            }
+                        }
+                        ImGui.endCombo();
+                    }
+                }
+
+                if (Configuration.getInputDevice().equals("JavaxAudio")) {
+                    ImGui.text("Input Device");
+                    if (ImGui.beginCombo("##JavaxAudioInputDevice", Configuration.getJavaxAudioConfig().getDeviceName())) {
+                        Mixer.Info[] mixers = AudioSystem.getMixerInfo();
+                        for (Mixer.Info info : mixers) {
+                            Mixer m = AudioSystem.getMixer(info);
+
+                            Line.Info[] targetLines = m.getTargetLineInfo();
+                            if (targetLines.length > 0) {
+                                if (ImGui.selectable(info.getName(),
+                                        Configuration.getJavaxAudioConfig().getDeviceName().equals(info.getName()))) {
+                                    Configuration.getJavaxAudioConfig().setDeviceName(info.getName());
+                                }
+                                if (Configuration.getJavaxAudioConfig().getDeviceName().equals(info.getName())) {
+                                    ImGui.setItemDefaultFocus();
+                                }
+                            }
+                        }
+                        ImGui.endCombo();
+                    }
+                }
+
                 ImGui.endDisabled();
             }
-            
+
             if (ImGui.collapsingHeader("Output", ImGuiTreeNodeFlags.DefaultOpen)) {
                 if (ImGui.beginCombo("##AudioOutputDevice", Configuration.getAudioOutputDevice())) {
                     PortAudioContext portAudioContext = PortAudioContext.getInstance();
                     for (DeviceInfo device : portAudioContext.getPortAudioJNI().enumerateDevices()) {
-                        if (ImGui.selectable(device.name(), Configuration.getAudioOutputDevice().equals(device.name()))) {
+                        if (ImGui.selectable(device.name(),
+                                Configuration.getAudioOutputDevice().equals(device.name()))) {
                             Configuration.setAudioOutputDevice(device.name());
                         }
                         if (Configuration.getAudioOutputDevice().equals(device.name())) {
@@ -431,10 +539,10 @@ public class Bolt {
                     ImGui.endCombo();
                 }
             }
-            
             ImGui.end();
 
-            ImGui.begin("RightSidebar", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize);            
+            ImGui.begin("RightSidebar",
+                    ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize);
             ImGui.setWindowPos(ImGui.getMainViewport().getSizeX() - 35, parent_size.y);
             ImGui.setWindowSize(35, ImGui.getMainViewport().getSizeY() - parent_size.y);
             ImGui.text("Max");
@@ -450,20 +558,22 @@ public class Bolt {
             }
             ImGui.end();
 
-            // create center window for waterfall and panadapter
-            ImGui.begin("CenterWindow", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize);
-            ImGui.setWindowPos(250, parent_size.y);
-            ImGui.setWindowSize(ImGui.getMainViewport().getSizeX() - 285, ImGui.getMainViewport().getSizeY() - parent_size.y);
-            panadapter.render();
-            waterfall.render();
-            ImGui.end();
-
-            // ImGui.begin("Waterfall");
-            // ImGui.end();
-
-            // ImGui.begin("Panadapter");
-            // panadapter.update(fftData);
-            // ImGui.end();
+            if (!isInputSourceDecodeOnly()) {
+                ImGui.begin("SDR", ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize);
+                ImGui.setWindowPos(250, parent_size.y);
+                ImGui.setWindowSize(ImGui.getMainViewport().getSizeX() - 285,
+                        ImGui.getMainViewport().getSizeY() - parent_size.y);
+                panadapter.render();
+                waterfall.render();
+                ImGui.end();
+            } else {
+                ImGui.begin("Decoder", ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize);
+                ImGui.setWindowPos(250, parent_size.y);
+                ImGui.setWindowSize(ImGui.getMainViewport().getSizeX() - 285,
+                        ImGui.getMainViewport().getSizeY() - parent_size.y);
+                waterfall.render();
+                ImGui.end();
+            }
 
             ImGui.render();
             GL11.glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -475,9 +585,7 @@ public class Bolt {
     }
 
     public void stop() {
-        dspThread.stop();
-        inputThread.stop();
-        outputThread.stop();
+        stopPipeline();
 
         imGuiGl3.shutdown();
         imGuiGlfw.shutdown();

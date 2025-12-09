@@ -21,7 +21,6 @@ public class Waterfall implements IGuiElement {
     private ByteBuffer uploadBuffer;
     private final Object lock = new Object();
     private volatile boolean dirty = false;
-    // Zoom factor for centered zoom; 1.0 = no zoom
     private float zoom = 1.0f;
     private static final float MIN_ZOOM = 1.0f;
     private static final float MAX_ZOOM = 8.0f;
@@ -143,9 +142,9 @@ public class Waterfall implements IGuiElement {
         float invZoom = 1.0f / Math.max(MIN_ZOOM, zoom);
         float halfRange = 0.5f * invZoom;
         float uMin = 0.5f - halfRange;
-        float vMin = 0.5f - halfRange;
         float uMax = 0.5f + halfRange;
-        float vMax = 0.5f + halfRange;
+        float vMin = 0.0f;
+        float vMax = 1.0f;
         ImGui.image(waterfallTextureId, (float) width, (float) height, uMin, vMin, uMax, vMax);
 
         int sampleRate = Configuration.getInputSampleRate();

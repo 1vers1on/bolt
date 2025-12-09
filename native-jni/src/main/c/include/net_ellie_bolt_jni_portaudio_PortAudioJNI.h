@@ -33,6 +33,14 @@ JNIEXPORT jobject JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_enumera
 
 /*
  * Class:     net_ellie_bolt_jni_portaudio_PortAudioJNI
+ * Method:    isFormatSupported
+ * Signature: (IID)Z
+ */
+JNIEXPORT jboolean JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_isFormatSupported
+  (JNIEnv *, jobject, jint, jint, jdouble);
+
+/*
+ * Class:     net_ellie_bolt_jni_portaudio_PortAudioJNI
  * Method:    nativeOpenInputStream
  * Signature: (IIDJ)J
  */
@@ -66,18 +74,18 @@ JNIEXPORT void JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeClos
 /*
  * Class:     net_ellie_bolt_jni_portaudio_PortAudioJNI
  * Method:    nativeReadStream
- * Signature: (J[BJ)J
+ * Signature: (J[BJI)J
  */
 JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeReadStream
-  (JNIEnv *, jclass, jlong, jbyteArray, jlong);
+  (JNIEnv *, jclass, jlong, jbyteArray, jlong, jint);
 
 /*
  * Class:     net_ellie_bolt_jni_portaudio_PortAudioJNI
  * Method:    nativeReadStreamOffset
- * Signature: (J[BIJ)J
+ * Signature: (J[BIJII)J
  */
 JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeReadStreamOffset
-  (JNIEnv *, jclass, jlong, jbyteArray, jint, jlong);
+  (JNIEnv *, jclass, jlong, jbyteArray, jint, jlong, jint, jint);
 
 /*
  * Class:     net_ellie_bolt_jni_portaudio_PortAudioJNI

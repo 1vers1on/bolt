@@ -13,5 +13,6 @@ public class DummyInputConfig {
 
     public void setSampleRate(int sampleRate) {
         this.sampleRate = sampleRate;
+        Configuration.saver.save(Configuration.INSTANCE);
     }
 }

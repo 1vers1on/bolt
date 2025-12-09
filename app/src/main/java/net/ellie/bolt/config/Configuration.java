@@ -16,22 +16,45 @@ public class Configuration {
     private int bandwidthStartOffset = 0;
     private int bandwidthEndOffset = 3000;
 
+    // TODO: pass an instance of Configuration to these configs to make saving better instead of static access
     private RTLSDRConfig rtlSdrConfig = new RTLSDRConfig();
     private DummyInputConfig dummyConfig = new DummyInputConfig(2048000);
+    private PortAudioInputConfig portAudioConfig = new PortAudioInputConfig(0, 48000, 1, 1024);
+    private JavaxInputConfig javaxConfig = new JavaxInputConfig("Default", 48000, 2, 1024);
 
     private int audioBufferSize = 8192;
     private int sampleRate = 48000;
 
-    private static ConfigurationSaver saver = ConfigurationSaver.create();
+    static ConfigurationSaver saver = ConfigurationSaver.create();
     public static Configuration INSTANCE = saver.load();
+
+    public static JavaxInputConfig getJavaxAudioConfig() {
+        return INSTANCE.javaxConfig;
+    }
+
+    public static void setJavaxAudioConfig(JavaxInputConfig newJavaxConfig) {
+        INSTANCE.javaxConfig = newJavaxConfig;
+        saver.save(INSTANCE);
+    }
+
+    public static PortAudioInputConfig getPortAudioConfig() {
+        return INSTANCE.portAudioConfig;
+    }
+
+    public static void setPortAudioConfig(PortAudioInputConfig newPortAudioConfig) {
+        INSTANCE.portAudioConfig = newPortAudioConfig;
+        saver.save(INSTANCE);
+    }
 
     public static int getInputSampleRate() {
         if (INSTANCE.inputDevice.equals("RTL-SDR")) {
             return INSTANCE.rtlSdrConfig.getRtlSdrSampleRate();
         } else if (INSTANCE.inputDevice.equals("Dummy")) {
             return INSTANCE.dummyConfig.getSampleRate();
+        } else if (INSTANCE.inputDevice.equals("PortAudio")) {
+            return INSTANCE.portAudioConfig.getSampleRate();
         } else {
-            return INSTANCE.sampleRate;
+            return -1; // Unknown sample rate
         }
     }
 

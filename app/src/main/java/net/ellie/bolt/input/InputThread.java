@@ -18,6 +18,8 @@ public class InputThread implements Runnable {
 
     private final float[] readBuffer;
 
+    private Thread localInputThread = null;
+
     public InputThread(CloseableInputSource inputSource) {
         this.inputSource = inputSource;
 
@@ -31,7 +33,8 @@ public class InputThread implements Runnable {
 
     public void start() {
         running.set(true);
-        new Thread(this, "InputThread-" + inputSource.getName()).start();
+        localInputThread = new Thread(this, "InputThread-" + inputSource.getName());
+        localInputThread.start();
     }
 
     @Override
@@ -62,7 +65,15 @@ public class InputThread implements Runnable {
 
     public void stop() {
         running.set(false);
+        if (localInputThread != null) {
+            try {
+                localInputThread.join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
         inputSource.stop();
+        logger.info("InputThread for {} stopped", inputSource.getName());
     }
 
     public CircularFloatBuffer getBuffer() {

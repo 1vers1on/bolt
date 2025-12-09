@@ -18,6 +18,26 @@ void throwPaException(JNIEnv* env, PaError* err) {
     }
 }
 
+JNIEXPORT jboolean JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_isFormatSupported(JNIEnv *env, jobject obj, jint deviceIndex, jint channels, jdouble sampleRate) {
+    PaError err;
+    if (deviceIndex < 0 || channels <= 0 || sampleRate <= 0) {
+        return JNI_FALSE;
+    }
+
+    PaStreamParameters parameters;
+    parameters.device = (PaDeviceIndex)deviceIndex;
+    parameters.channelCount = (int)channels;
+    parameters.sampleFormat = paInt16;
+    parameters.suggestedLatency = Pa_GetDeviceInfo(parameters.device)->defaultLowOutputLatency;
+    parameters.hostApiSpecificStreamInfo = NULL;
+    err = Pa_IsFormatSupported(&parameters, NULL, (double)sampleRate);
+    if (err != paFormatIsSupported) {
+        return JNI_FALSE;
+    }
+
+    return JNI_TRUE;
+}
+
 JNIEXPORT jint JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_initialize(JNIEnv *env, jobject obj) {
     PaError err = Pa_Initialize();
     if (err != paNoError) {
@@ -150,7 +170,7 @@ JNIEXPORT void JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeClos
 }
 
 JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeReadStream(
-    JNIEnv *env, jclass cls, jlong streamPtr, jbyteArray buffer, jlong framesRequested) {
+    JNIEnv *env, jclass cls, jlong streamPtr, jbyteArray buffer, jlong framesRequested, jint channels) {
 
     PaStream* stream = (PaStream*)streamPtr;
     if (stream == NULL) {
@@ -167,18 +187,23 @@ JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeRea
 
     jsize bufferLength = (*env)->GetArrayLength(env, buffer);
 
-    int channels = 1;
-    const PaDeviceInfo* devInfo = Pa_GetDeviceInfo(Pa_GetDefaultInputDevice());
-    if (devInfo && devInfo->maxInputChannels > 0) {
-        channels = devInfo->maxInputChannels;
+    const PaStreamInfo* streamInfo = Pa_GetStreamInfo(stream);
+    if (streamInfo == NULL) {
+        jclass ex = (*env)->FindClass(env, "java/lang/IllegalStateException");
+        (*env)->ThrowNew(env, ex, "Cannot get stream info");
+        return -3;
     }
+    
+    const PaStreamParameters* inputParams = Pa_GetStreamInfo(stream)->inputLatency == 0 ? NULL : 
+        NULL;
+        
     jsize bytesPerFrame = (jsize)(2 * channels);
-
     jlong requiredBytes = framesRequested * bytesPerFrame;
+    
     if (requiredBytes > bufferLength) {
         jclass ex = (*env)->FindClass(env, "java/lang/IllegalArgumentException");
         (*env)->ThrowNew(env, ex, "Requested frames exceed buffer capacity");
-        return -3;
+        return -4;
     }
 
     if (framesRequested == 0) return 0;
@@ -188,7 +213,7 @@ JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeRea
     if (bufferPtr == NULL) {
         jclass oom = (*env)->FindClass(env, "java/lang/OutOfMemoryError");
         (*env)->ThrowNew(env, oom, "Cannot get byte array elements");
-        return -4;
+        return -5;
     }
 
     PaError err = Pa_ReadStream(stream, bufferPtr, (unsigned long)framesRequested);
@@ -199,14 +224,14 @@ JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeRea
         return 0;
     } else if (err != paNoError) {
         throwPaException(env, &err);
-        return -5;
+        return -6;
     }
 
-    return (jlong)(framesRequested * bytesPerFrame);
+    return framesRequested;
 }
 
 JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeReadStreamOffset
-  (JNIEnv *env, jclass cls, jlong streamPtr, jbyteArray buffer, jint offset, jlong bytesToRead) {
+  (JNIEnv *env, jclass cls, jlong streamPtr, jbyteArray buffer, jint offset, jlong bytesToRead, jint channels, jint inputDeviceIndex) {
 
     PaStream* stream = (PaStream*)streamPtr;
     if (stream == NULL) {
@@ -224,8 +249,7 @@ JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeRea
         return -1;
     }
 
-    int channels = 1;
-    const PaDeviceInfo* devInfo = Pa_GetDeviceInfo(Pa_GetStreamInfo(stream)->inputLatency == 0 ? 0 : Pa_GetDefaultInputDevice());
+    const PaDeviceInfo* devInfo = Pa_GetDeviceInfo((PaDeviceIndex)inputDeviceIndex);
     if (devInfo != NULL) {
         channels = devInfo->maxInputChannels > 0 ? devInfo->maxInputChannels : 1;
     }
@@ -268,7 +292,7 @@ JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeRea
         return -4;
     }
 
-    return (jlong)(framesRequested * bytesPerFrame);
+    return (jlong)(framesRequested);
 }
 
 JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeOpenOutputStream(
@@ -369,5 +393,5 @@ JNIEXPORT jlong JNICALL Java_net_ellie_bolt_jni_portaudio_PortAudioJNI_nativeWri
         return -4;
     }
 
-    return (jlong)(framesToWrite * bytesPerFrame);
+    return (jlong)(framesToWrite);
 }

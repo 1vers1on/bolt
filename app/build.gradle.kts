@@ -87,6 +87,7 @@ tasks.named<JavaExec>("run") {
     val jniProject = project(":native-jni")
     val libDir = jniProject.layout.buildDirectory.dir("lib/main/release")
     systemProperty("java.library.path", libDir.get().asFile.absolutePath)
+    standardInput = System.`in`
 }
 
 tasks.jar {
@@ -100,3 +101,5 @@ tasks.jar {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
 }
+
+

@@ -4,10 +4,8 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import edu.emory.mathcs.jtransforms.fft.DoubleFFT_1D;
 import net.ellie.bolt.config.Configuration;
 import net.ellie.bolt.dsp.buffers.CircularFloatBuffer;
-import net.ellie.bolt.dsp.pipelineSteps.FrequencyShifter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,21 +20,25 @@ public class DspThread implements Runnable {
 
     private List<IPipelineStep> pipelineSteps = new ArrayList<>();
 
-    private final NumberType inputType = NumberType.COMPLEX; // TODO: make configurable
+    private final NumberType inputType;
 
     private boolean pipelineValid = false;
 
     private final int inputBufferSize;
 
-    public DspThread(CircularFloatBuffer inputBuffer, int inputBufferSize) {
+    private Thread localDspThread = null;
+
+    public DspThread(CircularFloatBuffer inputBuffer, int inputBufferSize, NumberType inputType) {
         this.inputBuffer = inputBuffer;
         this.audioOutputBuffer = new CircularFloatBuffer(Configuration.getAudioBufferSize());
         this.inputBufferSize = inputBufferSize;
+        this.inputType = inputType;
     }
 
     public void start() {
         running.set(true);
-        new Thread(this, "DspThread").start();
+        localDspThread = new Thread(this, "DspThread");
+        localDspThread.start();
     }
 
     @Override
@@ -44,7 +46,6 @@ public class DspThread implements Runnable {
         logger.info("DspThread started");
         running.set(true);
 
-        int n = Configuration.getFftSize();
         double[] pipelineBuf = new double[inputBufferSize];
 
         while (running.get()) {
@@ -84,6 +85,14 @@ public class DspThread implements Runnable {
 
     public void stop() {
         running.set(false);
+        if (localDspThread != null) {
+            try {
+                localDspThread.join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        logger.info("DspThread stopped");
     }
 
     public CircularFloatBuffer getAudioOutputBuffer() {
@@ -92,8 +101,7 @@ public class DspThread implements Runnable {
 
     private void validatePipeline() {
         NumberType previousType = inputType;
-        boolean hasFrequencyShift = false;
-
+        
         for (IPipelineStep step : pipelineSteps) {
             var types = step.getInputOutputType();
             NumberType stepInputType = types.getFirst();
@@ -102,10 +110,6 @@ public class DspThread implements Runnable {
             if (stepInputType != previousType) {
                 throw new IllegalStateException("Pipeline step input type " + stepInputType +
                         " does not match previous output type " + previousType);
-            }
-
-            if (step instanceof FrequencyShifter) {
-                hasFrequencyShift = true;
             }
 
             previousType = stepOutputType;

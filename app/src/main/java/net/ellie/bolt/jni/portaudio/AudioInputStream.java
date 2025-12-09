@@ -6,11 +6,13 @@ public class AudioInputStream implements AutoCloseable {
     private final long streamPtr;
     private final int channels;
     private final int bytesPerSample = 2; // paInt16
+    private final int inputDeviceIndex;
     private boolean started = false;
 
-    public AudioInputStream(long streamPtr, int channels) {
+    public AudioInputStream(long streamPtr, int channels, int inputDeviceIndex) {
         this.streamPtr = streamPtr;
         this.channels = channels;
+        this.inputDeviceIndex = inputDeviceIndex;
     }
 
     public boolean isStarted() {
@@ -31,15 +33,14 @@ public class AudioInputStream implements AutoCloseable {
     public int read(byte[] buffer, int offset, int byteCount) throws IOException {
         if (byteCount <= 0) return 0;
         int bytesPerFrame = bytesPerSample * channels;
-        // Make sure we only request whole frames
+
         int framesRequested = byteCount / bytesPerFrame;
         if (framesRequested == 0) return 0;
 
-        long framesRead = PortAudioJNI.nativeReadStreamOffset(streamPtr, buffer, offset, framesRequested);
+        long framesRead = PortAudioJNI.nativeReadStreamOffset(streamPtr, buffer, offset, framesRequested, channels, inputDeviceIndex);
         if (framesRead < 0) {
             throw new IOException("PortAudio read error (code=" + framesRead + ")");
         }
-        // framesRead == 0 can mean overflow or no data; treat as no data
         return (int) framesRead * bytesPerFrame;
     }
 

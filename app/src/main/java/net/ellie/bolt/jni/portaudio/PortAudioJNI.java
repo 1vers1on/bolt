@@ -22,6 +22,8 @@ public class PortAudioJNI {
 
     public native List<DeviceInfo> enumerateDevices();
 
+    public native boolean isFormatSupported(int deviceIndex, int channels, double sampleRate);
+
     static native long nativeOpenInputStream(int deviceIndex, int channels, double sampleRate, long framesPerBuffer);
 
     static native void nativeStartStream(long streamPtr);
@@ -30,16 +32,16 @@ public class PortAudioJNI {
 
     static native void nativeCloseStream(long streamPtr);
 
-    static native long nativeReadStream(long streamPtr, byte[] buffer, long framesToRead);
+    static native long nativeReadStream(long streamPtr, byte[] buffer, long framesToRead, int channels);
 
-    static native long nativeReadStreamOffset(long streamPtr, byte[] buffer, int offset, long framesToRead);
+    static native long nativeReadStreamOffset(long streamPtr, byte[] buffer, int offset, long framesToRead, int channels, int inputDeviceIndex);
 
     public AudioInputStream openInputStream(int deviceIndex, int channels, double sampleRate, long framesPerBuffer) {
         long streamPtr = nativeOpenInputStream(deviceIndex, channels, sampleRate, framesPerBuffer);
         if (streamPtr == 0) {
             throw new IllegalStateException("Failed to open input stream");
         }
-        return new AudioInputStream(streamPtr, channels);
+        return new AudioInputStream(streamPtr, channels, deviceIndex);
     }
 
     // -------- OUTPUT --------

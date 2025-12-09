@@ -26,6 +26,7 @@ public class RTLSDRConfig {
 
     public void setRtlSdrDeviceIndex(int newIndex) {
         rtlSdrDeviceIndex = newIndex;
+        Configuration.saver.save(Configuration.INSTANCE);
     }
 
     public int getRtlSdrSampleRate() {
@@ -34,6 +35,7 @@ public class RTLSDRConfig {
 
     public void setRtlSdrSampleRate(int newSampleRate) {
         rtlSdrSampleRate = newSampleRate;
+        Configuration.saver.save(Configuration.INSTANCE);
     }
 
     public int[] getRtlSdrSampleRates() {
@@ -46,5 +48,6 @@ public class RTLSDRConfig {
 
     public void setRtlSdrCenterFrequency(int newCenterFrequency) {
         rtlSdrCenterFrequency = newCenterFrequency;
+        Configuration.saver.save(Configuration.INSTANCE);
     }
 }

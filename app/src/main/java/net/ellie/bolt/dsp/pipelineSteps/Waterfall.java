@@ -75,6 +75,6 @@ public class Waterfall implements IPipelineStep {
 
     @Override
     public PipelineStepType getType() {
-        return PipelineStepType.OTHER;
+        return PipelineStepType.VISUALIZATION;
     }
 }

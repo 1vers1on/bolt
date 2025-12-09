@@ -8,8 +8,8 @@ public class DummyInputSource implements CloseableInputSource {
 
     // Carrier and FM parameters
     private final double carrierFreq = 1000.0;   // Carrier frequency in Hz
-    private final double modFreq = 100.0;        // FM modulation frequency in Hz
-    private final double freqDeviation = 400.0;  // Frequency deviation for FM in Hz
+    private final double modFreq = 2.0;        // FM modulation frequency in Hz
+    private final double freqDeviation = 2000.0;  // Frequency deviation for FM in Hz
 
     private double phase = 0.0;      // Carrier phase
     private double modPhase = 0.0;   // Modulator phase

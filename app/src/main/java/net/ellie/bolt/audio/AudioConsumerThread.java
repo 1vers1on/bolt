@@ -17,6 +17,8 @@ public class AudioConsumerThread implements Runnable {
 
     private final OpenALAudioContext audioContext;
 
+    private Thread localAudioConsumerThread = null;
+
     public AudioConsumerThread(CircularFloatBuffer inputBuffer) {
         this.inputBuffer = inputBuffer;
         this.audioContext = new OpenALAudioContext(Configuration.getSampleRate(), false, 4,
@@ -25,43 +27,54 @@ public class AudioConsumerThread implements Runnable {
 
     public void start() {
         running.set(true);
-        new Thread(this, "AudioConsumerThread").start();
+        localAudioConsumerThread = new Thread(this, "AudioConsumerThread");
+        localAudioConsumerThread.start();
     }
 
     public void stop() {
         running.set(false);
+        try {
+            if (localAudioConsumerThread != null) {
+                localAudioConsumerThread.join();
+            }
+        } catch (InterruptedException e) {
+            logger.error("Error stopping AudioConsumerThread", e);
+        }
+        localAudioConsumerThread = null;
+        logger.info("AudioConsumerThread stopped");
     }
 
     @Override
-public void run() {
-    if (!audioContext.openDevice(Configuration.getAudioOutputDevice())) {
-        audioContext.openDefaultDevice();
-    }
-
-    audioContext.init();
-
-    float[] audioData = new float[Configuration.getAudioBufferSize()];
-
-    while (running.get()) {
-        int bytesRead = inputBuffer.readNonBlocking(audioData, 0, audioData.length);
-        if (bytesRead == -1) {
-            break;
+    public void run() {
+        logger.info("AudioConsumerThread started");
+        if (!audioContext.openDevice(Configuration.getAudioOutputDevice())) {
+            audioContext.openDefaultDevice();
         }
-        
-        if (bytesRead > 0) {
-            float[] actualData = new float[bytesRead];
-            System.arraycopy(audioData, 0, actualData, 0, bytesRead);
-            audioContext.writeFloats(actualData);
-        } else {
-            try {
-                Thread.sleep(1);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+
+        audioContext.init();
+
+        float[] audioData = new float[Configuration.getAudioBufferSize()];
+
+        while (running.get()) {
+            int bytesRead = inputBuffer.readNonBlocking(audioData, 0, audioData.length);
+            if (bytesRead == -1) {
                 break;
             }
-        }
-    }
 
-    audioContext.destroy();
-}
+            if (bytesRead > 0) {
+                float[] actualData = new float[bytesRead];
+                System.arraycopy(audioData, 0, actualData, 0, bytesRead);
+                audioContext.writeFloats(actualData);
+            } else {
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+
+        audioContext.destroy();
+    }
 }

@@ -4,19 +4,26 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import net.ellie.bolt.contexts.PortAudioContext;
 import net.ellie.bolt.input.CloseableInputSource;
 import net.ellie.bolt.jni.portaudio.AudioInputStream;
 
 public class PortAudioInputSource implements CloseableInputSource {
+    private final Logger logger = LoggerFactory.getLogger(PortAudioInputSource.class);
     private volatile boolean running = true;
     private AudioInputStream audioInputStream;
     private final int sampleRate;
     
     public PortAudioInputSource(int deviceIndex, int channels, double sampleRate, long framesPerBuffer) {
         this.sampleRate = (int) sampleRate;
+        logger.info("Opening PortAudio input stream with deviceIndex={}, channels={}, sampleRate={}, framesPerBuffer={}",
+                deviceIndex, channels, sampleRate, framesPerBuffer);
         audioInputStream = PortAudioContext.getInstance().getPortAudioJNI()
             .openInputStream(deviceIndex, channels, sampleRate, framesPerBuffer);
+        
         audioInputStream.start();
     }
 
