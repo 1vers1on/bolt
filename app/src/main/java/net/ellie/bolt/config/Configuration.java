@@ -19,7 +19,7 @@ public class Configuration {
     // TODO: pass an instance of Configuration to these configs to make saving better instead of static access
     private RTLSDRConfig rtlSdrConfig = new RTLSDRConfig();
     private DummyInputConfig dummyConfig = new DummyInputConfig(2048000);
-    private PortAudioInputConfig portAudioConfig = new PortAudioInputConfig(0, 48000, 2, 256);
+    private PortAudioInputConfig portAudioConfig = new PortAudioInputConfig(0, 48000, 2, 128);
     private JavaxInputConfig javaxConfig = new JavaxInputConfig("Default", 48000, 2, 1024);
 
     private int audioBufferSize = 8192;

@@ -13,13 +13,20 @@ library {
             "-I${System.getProperty("java.home")}/include/linux",
             "-I${projectDir}/src/main/c/include",
             "-xc",
-            "-std=c11"
+            "-std=c11",
+            // Debugging and sanitizers
+            "-g",
+            "-O0",
+            "-fno-omit-frame-pointer",
         ))
     }
 }
 
 tasks.withType<LinkSharedLibrary>().configureEach {
-    linkerArgs.addAll(listOf("-lportaudio", "-lrtlsdr"))
+    linkerArgs.addAll(listOf(
+        "-lportaudio",
+        "-lrtlsdr",
+    ))
 }
 
 tasks.withType<CppCompile>().configureEach {

@@ -31,16 +31,21 @@ public class AudioInputStream implements AutoCloseable {
     }
 
     public int read(byte[] buffer, int offset, int byteCount) throws IOException {
-        if (byteCount <= 0) return 0;
+        if (byteCount <= 0)
+            return 0;
         int bytesPerFrame = bytesPerSample * channels;
 
         int framesRequested = byteCount / bytesPerFrame;
-        if (framesRequested == 0) return 0;
+        if (framesRequested == 0)
+            return 0;
 
-        long framesRead = PortAudioJNI.nativeReadStreamOffset(streamPtr, buffer, offset, framesRequested, channels, inputDeviceIndex);
+        long framesRead = PortAudioJNI.nativeReadStreamOffset(
+                streamPtr, buffer, offset, (long) framesRequested, channels, inputDeviceIndex);
+
         if (framesRead < 0) {
             throw new IOException("PortAudio read error (code=" + framesRead + ")");
         }
+
         return (int) framesRead * bytesPerFrame;
     }
 

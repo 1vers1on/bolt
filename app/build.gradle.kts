@@ -88,6 +88,16 @@ tasks.named<JavaExec>("run") {
     val libDir = jniProject.layout.buildDirectory.dir("lib/main/release")
     systemProperty("java.library.path", libDir.get().asFile.absolutePath)
     standardInput = System.`in`
+
+    // environment("LD_PRELOAD", "libasan.so")
+    // environment("ASAN_OPTIONS", listOf(
+    //     "detect_leaks=0",
+    //     "abort_on_error=1",
+    //     "strict_string_checks=1",
+    //     "alloc_dealloc_mismatch=1",
+    //     "symbolize=1",
+    //     "fast_unwind_on_malloc=0"
+    // ).joinToString(separator = ":"))
 }
 
 tasks.jar {

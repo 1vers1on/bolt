@@ -55,7 +55,8 @@ public class PortAudioInputSource implements CloseableInputSource {
         audioInputStream = PortAudioContext.getInstance().getPortAudioJNI()
             .openInputStream(deviceIndex, this.channelCount, sampleRate, framesPerBuffer);
 
-        this.byteBuffer = new byte[this.framesPerBuffer * this.channelCount * 2];
+        this.byteBuffer = new byte[this.framesPerBuffer * this.channelCount * 8];
+        logger.info("PortAudio input stream opened successfully");
 
         audioInputStream.start();
     }
@@ -74,24 +75,22 @@ public class PortAudioInputSource implements CloseableInputSource {
 
         int framesCaptured = bytesRead / (2 * channelCount);
         int framesToCopy = Math.min(framesCaptured, length);
-        // framesToCopy = framesToCopy / 2;
 
         int bi = 0;
         for (int i = 0; i < framesToCopy; i++) {
             float sum = 0;
             int channelsRead = 0;
             for (int j = 0; j < channelCount; j++) {
-                // Check if we have data for this channel
                 if (bi + 1 >= byteBuffer.length) break;
                 
                 int lo = byteBuffer[bi++] & 0xFF;
-                int hi = byteBuffer[bi++]; // signed 8-bit
-                int sample = (hi << 8) | lo; // little-endian 16-bit signed
+                int hi = byteBuffer[bi++];
+                int sample = (hi << 8) | lo;
                 float f = sample >= 0 ? (sample / 32767.0f) : (sample / 32768.0f);
                 sum += f;
                 channelsRead++;
             }
-            // Average only the channels we actually read
+
             if (channelsRead > 0) {
                 buffer[offset + i] = sum / channelsRead;
             } else {
