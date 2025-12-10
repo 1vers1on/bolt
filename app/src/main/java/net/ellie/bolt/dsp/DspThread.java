@@ -6,6 +6,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import net.ellie.bolt.config.Configuration;
 import net.ellie.bolt.dsp.buffers.CircularFloatBuffer;
+import net.ellie.bolt.dsp.pipelineSteps.WAVRecorder;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,6 +79,15 @@ public class DspThread implements Runnable {
         for (IPipelineStep step : pipelineSteps) {
             if (step instanceof IDemodulator) {
                 return (IDemodulator) step;
+            }
+        }
+        return null;
+    }
+    
+    public WAVRecorder getWAVRecorder() {
+        for (IPipelineStep step : pipelineSteps) {
+            if (step instanceof WAVRecorder) {
+                return (WAVRecorder) step;
             }
         }
         return null;

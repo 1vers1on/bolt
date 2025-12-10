@@ -1,8 +1,7 @@
 package net.ellie.bolt.input.sources.real;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,20 +9,54 @@ import org.slf4j.LoggerFactory;
 import net.ellie.bolt.contexts.PortAudioContext;
 import net.ellie.bolt.input.CloseableInputSource;
 import net.ellie.bolt.jni.portaudio.AudioInputStream;
+import net.ellie.bolt.jni.portaudio.PortAudioJNI;
 
 public class PortAudioInputSource implements CloseableInputSource {
     private final Logger logger = LoggerFactory.getLogger(PortAudioInputSource.class);
     private volatile boolean running = true;
     private AudioInputStream audioInputStream;
     private final int sampleRate;
+    private final int channelCount;
+    private final int framesPerBuffer;
+    private byte[] byteBuffer; // re-used between reads to avoid allocations
     
     public PortAudioInputSource(int deviceIndex, int channels, double sampleRate, long framesPerBuffer) {
-        this.sampleRate = (int) sampleRate;
-        logger.info("Opening PortAudio input stream with deviceIndex={}, channels={}, sampleRate={}, framesPerBuffer={}",
-                deviceIndex, channels, sampleRate, framesPerBuffer);
-        audioInputStream = PortAudioContext.getInstance().getPortAudioJNI()
-            .openInputStream(deviceIndex, channels, sampleRate, framesPerBuffer);
+        PortAudioJNI pa = PortAudioContext.getInstance().getPortAudioJNI();
         
+        PortAudioJNI.DeviceInfo device = null;
+        List<PortAudioJNI.DeviceInfo> devices = pa.enumerateDevices();
+        for (PortAudioJNI.DeviceInfo d : devices) {
+            if (d.index() == deviceIndex) {
+                device = d;
+                break;
+            }
+        }
+        
+        if (device == null) {
+            throw new RuntimeException("Device not found: " + deviceIndex);
+        }
+        
+        int maxInputChannels = device.maxInputChannels();
+        
+        int actualChannels = channels;
+        if (channels == 1 && maxInputChannels < 1) {
+            actualChannels = Math.max(1, maxInputChannels);
+            logger.warn("Device {} doesn't support {} channels, using {} channels instead", 
+                    device.name(), channels, actualChannels);
+        }
+        
+        this.sampleRate = (int) sampleRate;
+        this.channelCount = Math.max(1, actualChannels);
+        this.framesPerBuffer = (int) Math.max(1, framesPerBuffer);
+        
+        logger.info("Opening PortAudio input stream with deviceIndex={}, channels={} (requested: {}), sampleRate={}, framesPerBuffer={}",
+                deviceIndex, this.channelCount, channels, sampleRate, framesPerBuffer);
+        
+        audioInputStream = PortAudioContext.getInstance().getPortAudioJNI()
+            .openInputStream(deviceIndex, this.channelCount, sampleRate, framesPerBuffer);
+
+        this.byteBuffer = new byte[this.framesPerBuffer * this.channelCount * 2];
+
         audioInputStream.start();
     }
 
@@ -32,20 +65,41 @@ public class PortAudioInputSource implements CloseableInputSource {
         if (!running || audioInputStream == null) {
             return 0;
         }
-        byte[] byteBuffer = new byte[length * 2];
-        int bytesRead = audioInputStream.read(byteBuffer, 0, byteBuffer.length);
+
+        int bytesToRead = Math.min(byteBuffer.length, length * 2 * channelCount);
+        int bytesRead = audioInputStream.read(byteBuffer, 0, bytesToRead);
         if (bytesRead <= 0) {
             return 0;
         }
 
-        int samplesRead = bytesRead / 2;
-        ByteBuffer.wrap(byteBuffer).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(new short[samplesRead]);
-        for (int i = 0; i < samplesRead; i++) {
-            short sample = (short) ((byteBuffer[i * 2 + 1] << 8) | (byteBuffer[i * 2] & 0xFF));
-            buffer[offset + i] = sample / 32768.0f;
+        int framesCaptured = bytesRead / (2 * channelCount);
+        int framesToCopy = Math.min(framesCaptured, length);
+        // framesToCopy = framesToCopy / 2;
+
+        int bi = 0;
+        for (int i = 0; i < framesToCopy; i++) {
+            float sum = 0;
+            int channelsRead = 0;
+            for (int j = 0; j < channelCount; j++) {
+                // Check if we have data for this channel
+                if (bi + 1 >= byteBuffer.length) break;
+                
+                int lo = byteBuffer[bi++] & 0xFF;
+                int hi = byteBuffer[bi++]; // signed 8-bit
+                int sample = (hi << 8) | lo; // little-endian 16-bit signed
+                float f = sample >= 0 ? (sample / 32767.0f) : (sample / 32768.0f);
+                sum += f;
+                channelsRead++;
+            }
+            // Average only the channels we actually read
+            if (channelsRead > 0) {
+                buffer[offset + i] = sum / channelsRead;
+            } else {
+                buffer[offset + i] = 0;
+            }
         }
 
-        return samplesRead;
+        return framesToCopy;
     }
 
     @Override

@@ -7,5 +7,6 @@ public enum PipelineStepType {
     DEMODULATOR,
     DECIMATOR,
     OTHER,
-    VISUALIZATION
+    VISUALIZATION,
+    RECORDING
 }

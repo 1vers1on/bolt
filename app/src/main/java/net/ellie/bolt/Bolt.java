@@ -27,8 +27,10 @@ import net.ellie.bolt.dsp.pipelineSteps.Decimator;
 import net.ellie.bolt.dsp.pipelineSteps.FrequencyShifter;
 import net.ellie.bolt.dsp.pipelineSteps.IIRFilter;
 import net.ellie.bolt.dsp.pipelineSteps.RealWaterfall;
+import net.ellie.bolt.dsp.pipelineSteps.WAVRecorder;
 import net.ellie.bolt.dsp.pipelineSteps.demodulators.SSBDemodulator;
 import net.ellie.bolt.dsp.windows.HannWindow;
+import net.ellie.bolt.gui.AudioScope;
 import net.ellie.bolt.gui.FrequencyWidget;
 import net.ellie.bolt.gui.Panadapter;
 import net.ellie.bolt.gui.PlayPauseButton;
@@ -79,6 +81,7 @@ public class Bolt {
     private FrequencyWidget frequencyWidget = new FrequencyWidget();
     private PlayPauseButton playPauseButton = new PlayPauseButton();
     private Panadapter panadapter = new Panadapter();
+    private AudioScope audioScope = new AudioScope();
 
     public boolean pipelineRunning = false;
 
@@ -88,6 +91,7 @@ public class Bolt {
     private AudioConsumerThread outputThread;
 
     private CircularFloatBuffer waterfallBuffer;
+    private CircularFloatBuffer audioBuffer;
 
     public static void run() {
         Bolt bolt = Bolt.getInstance();
@@ -198,7 +202,7 @@ public class Bolt {
 
     private boolean isInputSourceDecodeOnly() {
         String device = Configuration.getInputDevice();
-        return device.equals("Audio") || device.equals("File");
+        return device.equals("PortAudio") || device.equals("File");
     }
 
     public void loop() {
@@ -209,6 +213,8 @@ public class Bolt {
         panadapter.update(fftData);
 
         int previousFrequency = Configuration.getTargetFrequency();
+
+        float[] audioData = new float[4096];
 
         while (!GLFW.glfwWindowShouldClose(window)) {
             GLFW.glfwPollEvents();
@@ -222,6 +228,13 @@ public class Bolt {
 
                 waterfall.update(fftData);
                 panadapter.update(fftData);
+
+                if (audioBuffer != null) {
+                    int samplesRead = audioBuffer.readNonBlocking(audioData, 0, audioData.length);
+                    if (samplesRead > 0) {
+                        audioScope.update(audioData, Configuration.getSampleRate());
+                    }
+                }
             }
 
             if (previousFrequency != Configuration.getTargetFrequency()) {
@@ -297,8 +310,8 @@ public class Bolt {
             if (!pipelineRunning && playPauseButton.isPlaying()) {
                 logger.info("Starting pipeline");
                 inputSource = InputSourceFactory.createInputSource();
-                inputThread = new InputThread(inputSource);
-                dspThread = new DspThread(inputThread.getBuffer(), 4096,
+                inputThread = new InputThread(inputSource, Configuration.getSampleRate());
+                dspThread = new DspThread(inputThread.getBuffer(), 512,
                         inputSource.isComplex() ? NumberType.COMPLEX : NumberType.REAL);
                 dspThread.clearPipeline();
 
@@ -338,10 +351,13 @@ public class Bolt {
                             new HannWindow(),
                             Configuration.getFftSize()));
 
+                    dspThread.addPipelineStep(new WAVRecorder(Configuration.getSampleRate()));
+
                     dspThread.buildPipeline();
 
                     inputThread.start();
                     dspThread.start();
+                    audioBuffer = dspThread.getAudioOutputBuffer();
                 }
                 pipelineRunning = true;
             } else if (pipelineRunning && !playPauseButton.isPlaying()) {
@@ -488,8 +504,6 @@ public class Bolt {
                                     Configuration.getPortAudioConfig().getDeviceIndex() == device.index())) {
                                 logger.info("Selected PortAudio input device with properties: " + device);
                                 Configuration.getPortAudioConfig().setDeviceIndex(device.index());
-                                Configuration.getPortAudioConfig().setChannelCount(1);
-                                Configuration.getPortAudioConfig().setSampleRate((int)device.defaultSampleRate());
                             }
                             if (Configuration.getPortAudioConfig().getDeviceIndex() == device.index()) {
                                 ImGui.setItemDefaultFocus();
@@ -539,6 +553,24 @@ public class Bolt {
                     ImGui.endCombo();
                 }
             }
+
+            if (ImGui.collapsingHeader("Recording", ImGuiTreeNodeFlags.DefaultOpen)) {
+                if (ImGui.button("Start WAV Recording")) {
+                    if (dspThread != null) {
+                        dspThread.getWAVRecorder().startRecording();
+                    }
+                }
+
+                if (ImGui.button("Stop WAV Recording")) {
+                    if (dspThread != null) {
+                        try {
+                            dspThread.getWAVRecorder().stopRecordingAndSave("recordings/");
+                        } catch (IOException e) {
+                            logger.error("Failed to save WAV recording: {}", e.getMessage());
+                        }
+                    }
+                }
+            }
             ImGui.end();
 
             ImGui.begin("RightSidebar",
@@ -571,6 +603,7 @@ public class Bolt {
                 ImGui.setWindowPos(250, parent_size.y);
                 ImGui.setWindowSize(ImGui.getMainViewport().getSizeX() - 285,
                         ImGui.getMainViewport().getSizeY() - parent_size.y);
+                audioScope.render();
                 waterfall.render();
                 ImGui.end();
             }

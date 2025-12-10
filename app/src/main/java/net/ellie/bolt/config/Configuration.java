@@ -4,8 +4,8 @@ import net.ellie.bolt.gui.colormap.Colormaps.Colormap;
 
 public class Configuration {
     private Colormap colormap = Colormap.VIRIDIS;
-    private String inputDevice = "Audio";
-    private int fftSize = 4096;
+    private String inputDevice = "PortAudio";
+    private int fftSize = 512;
     private int msaaSamples = 4;
     private double waterfallMinDb = -60.0;
     private double waterfallMaxDb = 6.0;
@@ -19,7 +19,7 @@ public class Configuration {
     // TODO: pass an instance of Configuration to these configs to make saving better instead of static access
     private RTLSDRConfig rtlSdrConfig = new RTLSDRConfig();
     private DummyInputConfig dummyConfig = new DummyInputConfig(2048000);
-    private PortAudioInputConfig portAudioConfig = new PortAudioInputConfig(0, 48000, 1, 1024);
+    private PortAudioInputConfig portAudioConfig = new PortAudioInputConfig(0, 48000, 2, 256);
     private JavaxInputConfig javaxConfig = new JavaxInputConfig("Default", 48000, 2, 1024);
 
     private int audioBufferSize = 8192;

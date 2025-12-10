@@ -16,14 +16,20 @@ public class InputThread implements Runnable {
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final CircularFloatBuffer buffer;
 
+    // Throttling state
+    private final int complexFactor;
+    private final int sampleRate; // samples per second for one channel; effective rate accounts for complexFactor
+    private long nextReadDeadlineNanos = 0L;
+
     private final float[] readBuffer;
 
     private Thread localInputThread = null;
 
-    public InputThread(CloseableInputSource inputSource) {
+    public InputThread(CloseableInputSource inputSource, int sampleRate) {
         this.inputSource = inputSource;
 
-        int complexFactor = inputSource.isComplex() ? 2 : 1;
+        this.complexFactor = inputSource.isComplex() ? 2 : 1;
+        this.sampleRate = sampleRate;
 
         int bufferSize = Configuration.getFftSize() * 32 * complexFactor; // TODO: figure out the correct size
         this.buffer = new CircularFloatBuffer(bufferSize);
@@ -41,10 +47,30 @@ public class InputThread implements Runnable {
     public void run() {
         logger.info("InputThread for {} started", inputSource.getName());
         try {
+            nextReadDeadlineNanos = System.nanoTime();
             while (running.get()) {
+                long now = System.nanoTime();
+                long waitNanos = nextReadDeadlineNanos - now;
+                if (waitNanos > 0) {
+                    long waitMillis = waitNanos / 1_000_000L;
+                    int waitExtraNanos = (int)(waitNanos % 1_000_000L);
+                    if (waitMillis > 0 || waitExtraNanos > 0) {
+                        try {
+                            Thread.sleep(waitMillis, waitExtraNanos);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
+                }
+
                 int samplesRead = inputSource.read(readBuffer, 0, readBuffer.length);
                 if (samplesRead > 0) {
                     buffer.write(readBuffer, 0, samplesRead);
+
+                    double secondsForChunk = (double) samplesRead / (double) (sampleRate * complexFactor);
+                    long nanosForChunk = (long) (secondsForChunk * 1_000_000_000L);
+                    nextReadDeadlineNanos = System.nanoTime() + nanosForChunk;
                 } else {
                     try {
                         Thread.sleep(1);
@@ -52,6 +78,7 @@ public class InputThread implements Runnable {
                         Thread.currentThread().interrupt();
                         break;
                     }
+                    nextReadDeadlineNanos = System.nanoTime() + 1_000_000L;
                 }
             }
         } catch (InterruptedException e) {

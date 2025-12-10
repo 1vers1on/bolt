@@ -15,18 +15,23 @@ public class RealWaterfall implements IPipelineStep {
     private final DoubleFFT_1D fft;
     private final IWindow windowFunction;
     private final int fftSize;
+    // Reuse buffers to avoid frequent allocations and GC stalls
+    private final double[] work;
+    private final double[] magnitude;
 
     public RealWaterfall(CircularFloatBuffer outputBuffer, IWindow windowFunction, int fftSize) {
         this.outputBuffer = outputBuffer;
         this.fft = new DoubleFFT_1D(fftSize);
         this.windowFunction = windowFunction;
         this.fftSize = fftSize;
+        this.work = new double[fftSize];
+        // Allocate up to fftSize bins to allow returning n bins per process call
+        this.magnitude = new double[fftSize];
     }
 
     @Override
     public int process(double[] buffer, int length) {
         int n = Math.min(length, fftSize);
-        double[] work = new double[fftSize];
         System.arraycopy(buffer, 0, work, 0, n);
 
         windowFunction.apply(work, n);
@@ -39,8 +44,7 @@ public class RealWaterfall implements IPipelineStep {
 
         fft.realForward(work);
 
-        int bins = fftSize / 2;
-        double[] magnitude = new double[bins];
+        int bins = n;
 
         double gainCompensation = windowFunction.getGainCompensation(fftSize);
         double dbRange = Configuration.getWaterfallMaxDb() - Configuration.getWaterfallMinDb();
@@ -49,22 +53,30 @@ public class RealWaterfall implements IPipelineStep {
 
         double dc = Math.abs(work[0]);
         double dcPower = dc * dc;
-        if (dcPower < 1e-20) dcPower = 1e-20;
+        if (dcPower < 1e-20)
+            dcPower = 1e-20;
         double dcDb = 10.0 * Math.log10(dcPower) + scaleFactorDb;
         double dcNorm = (dcDb - Configuration.getWaterfallMinDb()) / dbRange;
         magnitude[0] = Math.max(0.0, Math.min(1.0, dcNorm));
 
         for (int k = 1; k < bins; k++) {
-            double re = work[2 * k];
-            double im = work[2 * k + 1];
-            double powerSquared = re * re + im * im;
-            if (powerSquared < 1e-20) powerSquared = 1e-20;
-            double db = 10.0 * Math.log10(powerSquared) + scaleFactorDb;
-            double norm = (db - Configuration.getWaterfallMinDb()) / dbRange;
-            magnitude[k] = Math.max(0.0, Math.min(1.0, norm));
+            int reIndex = 2 * k;
+            int imIndex = reIndex + 1;
+            if (imIndex < work.length) {
+                double re = work[reIndex];
+                double im = work[imIndex];
+                double powerSquared = re * re + im * im;
+                if (powerSquared < 1e-20)
+                    powerSquared = 1e-20;
+                double db = 10.0 * Math.log10(powerSquared) + scaleFactorDb;
+                double norm = (db - Configuration.getWaterfallMinDb()) / dbRange;
+                magnitude[k] = Math.max(0.0, Math.min(1.0, norm));
+            } else {
+                magnitude[k] = 0.0;
+            }
         }
 
-        outputBuffer.writeNonBlocking(magnitude, 0, magnitude.length);
+        outputBuffer.writeNonBlocking(magnitude, 0, bins);
 
         return n;
     }

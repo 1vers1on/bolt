@@ -224,4 +224,8 @@ public class CircularFloatBuffer {
             lock.unlock();
         }
     }
+
+    public int capacity() {
+        return capacity;
+    }
 }
