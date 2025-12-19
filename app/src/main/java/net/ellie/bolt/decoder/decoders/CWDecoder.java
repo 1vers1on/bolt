@@ -7,8 +7,7 @@ import net.ellie.bolt.decoder.TextData;
 public class CWDecoder implements IDecoderStep<float[], TextData> {
     @Override
     public TextData decode(float[] inputData) {
-        // Placeholder implementation for CW decoding
-        String decodedText = ""; // Replace with actual decoding logic
+        String decodedText = ""; // TODO: implement CW decoding logic here
         return new TextData(decodedText);
     }
 
