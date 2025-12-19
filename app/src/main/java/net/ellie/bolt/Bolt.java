@@ -1,7 +1,6 @@
 package net.ellie.bolt;
 
 import java.io.IOException;
-import java.io.ObjectInputFilter.Config;
 import java.nio.ByteBuffer;
 
 import javax.sound.sampled.AudioSystem;
@@ -171,7 +170,7 @@ public class Bolt {
         style.setAntiAliasedLinesUseTex(true);
         style.setAntiAliasedFill(true);
 
-        waterfall = new Waterfall(1280, 720);
+        waterfall = new Waterfall(2048, 720);
         waterfall.initialize();
         frequencyWidget.initialize();
         waterfallBuffer = new CircularFloatBuffer(Configuration.getFftSize() * 2);

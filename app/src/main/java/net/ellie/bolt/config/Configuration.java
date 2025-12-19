@@ -5,10 +5,12 @@ import net.ellie.bolt.gui.colormap.Colormaps.Colormap;
 public class Configuration {
     private Colormap colormap = Colormap.VIRIDIS;
     private String inputDevice = "PortAudio";
-    private int fftSize = 512;
+    private int fftSize = 4096;
     private int msaaSamples = 4;
     private double waterfallMinDb = -60.0;
     private double waterfallMaxDb = 6.0;
+    // Maximum frequency to display for real-mode waterfall (in Hz)
+    private int waterfallMaxRealHz = 7000;
     private double zoomLevel = 1.0; // TODO: implement zooming
     private String audioOutputDevice = "Default";
     private int targetFrequency = 101_500_000; // 101.5 MHz
@@ -132,6 +134,15 @@ public class Configuration {
 
     public static void setWaterfallMaxDb(double newWaterfallMaxDb) {
         INSTANCE.waterfallMaxDb = newWaterfallMaxDb;
+        saver.save(INSTANCE);
+    }
+
+    public static int getWaterfallMaxRealHz() {
+        return INSTANCE.waterfallMaxRealHz;
+    }
+
+    public static void setWaterfallMaxRealHz(int newMaxHz) {
+        INSTANCE.waterfallMaxRealHz = newMaxHz;
         saver.save(INSTANCE);
     }
 
