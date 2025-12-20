@@ -1,13 +1,13 @@
 package net.ellie.bolt.dsp.pipelineSteps;
 
-import net.ellie.bolt.dsp.IPipelineStep;
+import net.ellie.bolt.dsp.AbstractPipelineStep;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
 
 import org.apache.commons.math3.util.Pair;
 import edu.emory.mathcs.jtransforms.fft.DoubleFFT_1D;
 
-public class FFTOverlapSaveFilterReal implements IPipelineStep {
+public class FFTOverlapSaveFilterReal extends AbstractPipelineStep {
     private final int fftSize;
     private final int hopSize;
     private final int filterLen;

@@ -20,16 +20,23 @@ import imgui.glfw.ImGuiImplGlfw;
 import net.ellie.bolt.audio.AudioConsumerThread;
 import net.ellie.bolt.config.Configuration;
 import net.ellie.bolt.contexts.PortAudioContext;
+import net.ellie.bolt.decoder.DecoderOutputTypes;
+import net.ellie.bolt.decoder.DecoderThread;
 import net.ellie.bolt.decoder.buffer.CircularByteBuffer;
+import net.ellie.bolt.decoder.buffer.CircularCharBuffer;
 import net.ellie.bolt.dsp.DspThread;
 import net.ellie.bolt.dsp.IDemodulator;
 import net.ellie.bolt.dsp.IIRFilterDesigns;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.buffers.CircularFloatBuffer;
+import net.ellie.bolt.dsp.pipelineSteps.Average;
 import net.ellie.bolt.dsp.pipelineSteps.Decimator;
 import net.ellie.bolt.dsp.pipelineSteps.FrequencyShifter;
+import net.ellie.bolt.dsp.pipelineSteps.Goertzel;
+import net.ellie.bolt.dsp.pipelineSteps.Hysteresis;
 import net.ellie.bolt.dsp.pipelineSteps.IIRFilter;
 import net.ellie.bolt.dsp.pipelineSteps.RealWaterfall;
+import net.ellie.bolt.dsp.pipelineSteps.Threshold;
 import net.ellie.bolt.dsp.pipelineSteps.WAVRecorder;
 import net.ellie.bolt.dsp.pipelineSteps.demodulators.SSBDemodulator;
 import net.ellie.bolt.dsp.windows.HannWindow;
@@ -38,12 +45,14 @@ import net.ellie.bolt.gui.ByteOutputGui;
 import net.ellie.bolt.gui.FrequencyWidget;
 import net.ellie.bolt.gui.Panadapter;
 import net.ellie.bolt.gui.PlayPauseButton;
+import net.ellie.bolt.gui.TextOutputGui;
 import net.ellie.bolt.gui.Waterfall;
 import net.ellie.bolt.input.CloseableInputSource;
 import net.ellie.bolt.input.InputSourceFactory;
 import net.ellie.bolt.input.InputThread;
 import net.ellie.bolt.jni.portaudio.PortAudioJNI.DeviceInfo;
 import net.ellie.bolt.jni.rtlsdr.RTLSDR;
+import net.ellie.bolt.util.Buffers;
 import net.ellie.bolt.util.UnitFormatter;
 import imgui.ImFontAtlas;
 import imgui.ImFontConfig;
@@ -96,10 +105,16 @@ public class Bolt {
     private InputThread inputThread;
     private DspThread dspThread;
     private AudioConsumerThread outputThread;
+    private DecoderThread decoderThread;
 
     private CircularFloatBuffer waterfallBuffer;
-    private CircularByteBuffer byteOutputBuffer;
+
+    private TextOutputGui textOutputGui;
     private ByteOutputGui byteOutputGui;
+
+    private AudioScope audioScope;
+
+    private CircularFloatBuffer audioOutputBuffer = Buffers.EMPTY_FLOAT_BUFFER;
 
     public static void run() {
         Bolt bolt = Bolt.getInstance();
@@ -131,7 +146,8 @@ public class Bolt {
 
         ByteBuffer iconBuffer;
         try (InputStream is = Bolt.class.getResourceAsStream("/images/icon.png")) {
-            if (is == null) throw new RuntimeException("Resource not found");
+            if (is == null)
+                throw new RuntimeException("Resource not found");
             byte[] bytes = is.readAllBytes();
             iconBuffer = MemoryUtil.memAlloc(bytes.length);
             iconBuffer.put(bytes).flip();
@@ -145,7 +161,8 @@ public class Bolt {
             IntBuffer comp = stack.mallocInt(1);
 
             ByteBuffer image = STBImage.stbi_load_from_memory(iconBuffer, w, h, comp, 4);
-            if (image == null) throw new RuntimeException("Failed to load icon: " + STBImage.stbi_failure_reason());
+            if (image == null)
+                throw new RuntimeException("Failed to load icon: " + STBImage.stbi_failure_reason());
 
             GLFWImage.Buffer icon = GLFWImage.malloc(1);
             icon.width(w.get(0));
@@ -214,8 +231,10 @@ public class Bolt {
         waterfallBuffer = new CircularFloatBuffer(Configuration.getFftSize() * 2);
         PortAudioContext.getInstance().getPortAudioJNI().initialize();
 
-        byteOutputBuffer = new CircularByteBuffer(1024 * 1024);
-        byteOutputGui = new ByteOutputGui(byteOutputBuffer);
+        textOutputGui = new TextOutputGui(Buffers.EMPTY_CHAR_BUFFER);
+        byteOutputGui = new ByteOutputGui(Buffers.EMPTY_BYTE_BUFFER);
+
+        audioScope = new AudioScope();
     }
 
     private void stopPipeline() {
@@ -234,6 +253,9 @@ public class Bolt {
                 step.reset();
             }
         }
+
+        if (decoderThread != null)
+            decoderThread.stop();
 
         inputThread = null;
         dspThread = null;
@@ -256,11 +278,28 @@ public class Bolt {
 
         float[] audioData = new float[4096];
 
+        long lastFrameTime = System.nanoTime();
+        float deltaTime = 0.0f;
+        int frameCount = 0;
+        float fps = 0.0f;
+        long lastFpsUpdate = System.nanoTime();
+
         while (!GLFW.glfwWindowShouldClose(window)) {
             GLFW.glfwPollEvents();
-            byte[] randomData = new byte[10];
-            ThreadLocalRandom.current().nextBytes(randomData);
-            byteOutputBuffer.writeNonBlocking(randomData, 0, randomData.length);
+
+            // read into audio data from dsp output buffer
+            audioOutputBuffer.readNonBlocking(audioData, 0, audioData.length);
+            audioScope.update(audioData, Configuration.getSampleRate());
+
+            long now = System.nanoTime();
+            deltaTime = (now - lastFrameTime) / 1_000_000_000.0f;
+            lastFrameTime = now;
+            frameCount++;
+            if (now - lastFpsUpdate >= 1_000_000_000L) {
+                fps = frameCount / ((now - lastFpsUpdate) / 1_000_000_000.0f);
+                frameCount = 0;
+                lastFpsUpdate = now;
+            }
 
             if (pipelineRunning) {
                 if (dspThread.getPipelineSteps().get(0) instanceof FrequencyShifter fs) {
@@ -375,6 +414,9 @@ public class Bolt {
                         dspThread.addPipelineStep(new Decimator(decimationFactor, inputSampleRate));
                     }
 
+                    dspThread.addPipelineStep(new WAVRecorder(Configuration.getSampleRate()));
+
+
                     dspThread.buildPipeline();
 
                     outputThread = new AudioConsumerThread(dspThread.getAudioOutputBuffer());
@@ -389,7 +431,26 @@ public class Bolt {
 
                     dspThread.addPipelineStep(new WAVRecorder(Configuration.getSampleRate()));
 
+                    // dspThread.addPipelineStep(new Goertzel(
+                    //         400,
+                    //         inputSource.getSampleRate(),
+                    //         512));
+
+                    // dspThread.addPipelineStep(new Decimator(8, inputSource.getSampleRate()));
+
+                    dspThread.addPipelineStep(new Threshold(0.3f));
+
+                    dspThread.addPipelineStep(new Average(128));
+
+                    dspThread.addPipelineStep(new Hysteresis(0.1f, 0.05f));
+
+
                     dspThread.buildPipeline();
+
+                    audioOutputBuffer = dspThread.getAudioOutputBuffer();
+
+                    decoderThread = new DecoderThread(dspThread.getAudioOutputBuffer(), Configuration.getSampleRate());
+                    waterfall.setMarkerFrequency(1000);
 
                     inputThread.start();
                     dspThread.start();
@@ -503,7 +564,7 @@ public class Bolt {
                 }
 
                 if (PortAudioContext.getInstance()
-                            .getDeviceInfoByIndex(Configuration.getPortAudioConfig().getDeviceIndex()) == null) {
+                        .getDeviceInfoByIndex(Configuration.getPortAudioConfig().getDeviceIndex()) == null) {
                     Configuration.getPortAudioConfig().setDeviceIndex(0);
                 }
 
@@ -550,7 +611,8 @@ public class Bolt {
 
                 if (Configuration.getInputDevice().equals("JavaxAudio")) {
                     ImGui.text("Input Device");
-                    if (ImGui.beginCombo("##JavaxAudioInputDevice", Configuration.getJavaxAudioConfig().getDeviceName())) {
+                    if (ImGui.beginCombo("##JavaxAudioInputDevice",
+                            Configuration.getJavaxAudioConfig().getDeviceName())) {
                         Mixer.Info[] mixers = AudioSystem.getMixerInfo();
                         for (Mixer.Info info : mixers) {
                             Mixer m = AudioSystem.getMixer(info);
@@ -606,6 +668,14 @@ public class Bolt {
                     }
                 }
             }
+
+            if (ImGui.collapsingHeader("Debug", ImGuiTreeNodeFlags.DefaultOpen)) {
+                ImGui.text("Input Source: " + (inputSource != null ? inputSource.getName() : "None"));
+                ImGui.text("Pipeline Running: " + pipelineRunning);
+                ImGui.text(String.format("Delta Time: %.3f ms", deltaTime * 1000.0f));
+                ImGui.text(String.format("FPS: %.1f", fps));
+            }
+
             ImGui.end();
 
             ImGui.begin("RightSidebar",
@@ -638,7 +708,16 @@ public class Bolt {
                 ImGui.setWindowPos(250, parent_size.y);
                 ImGui.setWindowSize(ImGui.getMainViewport().getSizeX() - 285,
                         ImGui.getMainViewport().getSizeY() - parent_size.y);
-                byteOutputGui.render();
+                if (decoderThread != null && decoderThread.getOutputType() == DecoderOutputTypes.TEXT) {
+                    textOutputGui.setCircularCharBuffer(decoderThread.getTextOutputBuffer());
+                    textOutputGui.render();
+                } else if (decoderThread != null && decoderThread.getOutputType() == DecoderOutputTypes.RAW_BYTES) {
+                    byteOutputGui.setCircularByteBuffer(decoderThread.getRawByteOutputBuffer());
+                    byteOutputGui.render();
+                }
+
+                audioScope.render();
+
                 waterfall.render();
                 ImGui.end();
             }

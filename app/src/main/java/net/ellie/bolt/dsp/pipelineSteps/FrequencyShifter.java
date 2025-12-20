@@ -2,11 +2,11 @@ package net.ellie.bolt.dsp.pipelineSteps;
 
 import org.apache.commons.math3.util.Pair;
 
-import net.ellie.bolt.dsp.IPipelineStep;
+import net.ellie.bolt.dsp.AbstractPipelineStep;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
 
-public class FrequencyShifter implements IPipelineStep {
+public class FrequencyShifter extends AbstractPipelineStep {
     private final double sampleRate;
     private double phase = 0.0;
     private double phaseInc = 0.0;

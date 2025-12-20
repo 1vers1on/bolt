@@ -2,11 +2,11 @@ package net.ellie.bolt.dsp.pipelineSteps;
 
 import org.apache.commons.math3.util.Pair;
 
-import net.ellie.bolt.dsp.IPipelineStep;
+import net.ellie.bolt.dsp.AbstractPipelineStep;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
 
-public class FIRFilter implements IPipelineStep {
+public class FIRFilter extends AbstractPipelineStep {
     private double[] taps;
     private double[] delay;
     private int delayIdx;

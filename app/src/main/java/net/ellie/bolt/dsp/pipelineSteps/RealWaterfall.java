@@ -4,14 +4,14 @@ import org.apache.commons.math3.util.Pair;
 
 import edu.emory.mathcs.jtransforms.fft.DoubleFFT_1D;
 import net.ellie.bolt.config.Configuration;
-import net.ellie.bolt.dsp.IPipelineStep;
+import net.ellie.bolt.dsp.AbstractPipelineStep;
 import net.ellie.bolt.dsp.IWindow;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
 import net.ellie.bolt.dsp.buffers.CircularFloatBuffer;
 
 
-public class RealWaterfall implements IPipelineStep {
+public class RealWaterfall extends AbstractPipelineStep {
     private final CircularFloatBuffer outputBuffer;
     private final DoubleFFT_1D fft;
     private final IWindow windowFunction;

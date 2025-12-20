@@ -2,11 +2,11 @@ package net.ellie.bolt.dsp.pipelineSteps;
 
 import org.apache.commons.math3.util.Pair;
 
-import net.ellie.bolt.dsp.IPipelineStep;
+import net.ellie.bolt.dsp.AbstractPipelineStep;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
 
-public class Goertzel implements IPipelineStep {
+public class Goertzel extends AbstractPipelineStep {
     private double targetFrequency;
     private double sampleRate;
     private int blockSize;

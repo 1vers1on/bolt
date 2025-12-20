@@ -2,11 +2,11 @@ package net.ellie.bolt.dsp.pipelineSteps;
 
 import org.apache.commons.math3.util.Pair;
 
-import net.ellie.bolt.dsp.IPipelineStep;
+import net.ellie.bolt.dsp.AbstractPipelineStep;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
 
-public class RealFIRFilter implements IPipelineStep {
+public class RealFIRFilter extends AbstractPipelineStep {
     private double[] taps;
     private double[] delay;
     private int delayIdx;

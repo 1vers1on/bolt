@@ -13,11 +13,11 @@ import javax.sound.sampled.AudioSystem;
 
 import org.apache.commons.math3.util.Pair;
 
-import net.ellie.bolt.dsp.IPipelineStep;
+import net.ellie.bolt.dsp.AbstractPipelineStep;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
 
-public class WAVRecorder implements IPipelineStep {
+public class WAVRecorder extends AbstractPipelineStep {
     private final List<Float> recordingBuffer;
     private final int sampleRate;
     private volatile boolean isRecording = false;

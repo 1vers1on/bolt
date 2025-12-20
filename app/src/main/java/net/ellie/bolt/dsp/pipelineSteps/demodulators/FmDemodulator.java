@@ -1,13 +1,13 @@
 package net.ellie.bolt.dsp.pipelineSteps.demodulators;
 
 import net.ellie.bolt.dsp.IDemodulator;
-import net.ellie.bolt.dsp.IPipelineStep;
+import net.ellie.bolt.dsp.AbstractPipelineStep;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
 
 import org.apache.commons.math3.util.Pair;
 
-public class FmDemodulator implements IPipelineStep, IDemodulator {
+public class FmDemodulator extends AbstractPipelineStep implements IDemodulator {
 
     private final int sampleRate;
     private double frequencyOffsetHz = 0.0;

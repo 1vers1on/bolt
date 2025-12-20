@@ -14,6 +14,15 @@ import net.ellie.bolt.config.Configuration;
 import net.ellie.bolt.gui.colormap.Colormaps;
 
 public class Waterfall implements IGuiElement {
+    private Integer markerFrequency = null;
+
+    public void setMarkerFrequency(int freq) {
+        markerFrequency = freq;
+    }
+
+    public void clearMarkerFrequency() {
+        markerFrequency = null;
+    }
     private int waterfallTextureId;
     private int width, height;
     private byte[] pixelData;
@@ -147,7 +156,7 @@ public class Waterfall implements IGuiElement {
         float vMax = 1.0f;
         ImGui.image(waterfallTextureId, (float) width, (float) height, uMin, vMin, uMax, vMax);
 
-        int sampleRate = Configuration.getInputSampleRate();
+        int sampleRate = Configuration.getSampleRate();
         int centerFreq = Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency();
         int targetFreq = Configuration.getTargetFrequency();
 
@@ -209,6 +218,17 @@ public class Waterfall implements IGuiElement {
 
         dl.addLine(xHandleStart, bandTop, xHandleStart, bandBottom, handleColor, 2.0f);
         dl.addLine(xHandleEnd, bandTop, xHandleEnd, bandBottom, handleColor, 2.0f);
+
+        if (markerFrequency != null) {
+            float markerHz = markerFrequency;
+            markerHz = Math.max(startHz, Math.min(centerFreq + spanHz / 2.0f, markerHz));
+            float markerNorm = (markerHz - startHz) / spanHz;
+            float markerXLocal = markerNorm * (width - 1);
+            float markerXScreen = min.x + markerXLocal + 0.5f;
+            float markerXLine = (float) Math.floor(markerXScreen) + 0.5f;
+            int markerColor = ImGui.getColorU32(ImGui.getStyle().getColor(ImGuiCol.PlotLines));
+            dl.addLine(markerXLine, yTop, markerXLine, yBottom, markerColor, 2.0f);
+        }
 
         boolean hovered = ImGui.isItemHovered();
         if (hovered) {

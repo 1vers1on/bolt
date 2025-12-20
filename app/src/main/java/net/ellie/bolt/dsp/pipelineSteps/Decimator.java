@@ -2,11 +2,11 @@ package net.ellie.bolt.dsp.pipelineSteps;
 
 import org.apache.commons.math3.util.Pair;
 
-import net.ellie.bolt.dsp.IPipelineStep;
+import net.ellie.bolt.dsp.AbstractPipelineStep;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
 
-public class Decimator implements IPipelineStep {
+public class Decimator extends AbstractPipelineStep {
     private final int decimationFactor;
     private final double[] taps;
     private final double[] delay;

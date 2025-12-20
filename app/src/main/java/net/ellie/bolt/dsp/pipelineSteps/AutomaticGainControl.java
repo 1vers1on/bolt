@@ -3,11 +3,11 @@ package net.ellie.bolt.dsp.pipelineSteps;
 import org.apache.commons.math3.util.Pair;
 
 import net.ellie.bolt.config.Configuration;
-import net.ellie.bolt.dsp.IPipelineStep;
+import net.ellie.bolt.dsp.AbstractPipelineStep;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
 
-public class AutomaticGainControl implements IPipelineStep {
+public class AutomaticGainControl extends AbstractPipelineStep {
     private final double targetRmsDb;
     private final double minGainDb;
     private final double maxGainDb;

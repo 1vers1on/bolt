@@ -15,12 +15,13 @@ public class AudioScope implements IGuiElement {
 
     @Override
     public void initialize() {
-        // No-op for now; could set up styles if desired.
     }
 
     /**
      * Update the scope with new audio data.
-     * @param samples Latest PCM samples (mono). If stereo, provide one channel.
+     * 
+     * @param samples      Latest PCM samples (mono). If stereo, provide one
+     *                     channel.
      * @param sampleRateHz Sample rate of the buffer (Hz).
      */
     public void update(float[] samples, float sampleRateHz) {
@@ -48,11 +49,9 @@ public class AudioScope implements IGuiElement {
             windowView = null;
             return;
         }
-        // Compute number of samples that fit in the desired horizontal span.
         float divisions = 10f; // typical oscilloscope grid width
         float spanSeconds = (timeDivMs * divisions) / 1000f;
         int samplesToShow = Math.max(1, Math.min(samples.length, (int) (spanSeconds * sampleRate)));
-        // Slice last samplesToShow from samples.
         if (windowView == null || windowView.length != samplesToShow) {
             windowView = new float[samplesToShow];
         }
@@ -70,21 +69,18 @@ public class AudioScope implements IGuiElement {
             return;
         }
 
-        // Plot styling: minimal frame like Panadapter
         ImPlot.pushStyleVar(ImPlotStyleVar.PlotPadding, new ImVec2(0, 0));
         ImPlot.pushStyleVar(ImPlotStyleVar.PlotBorderSize, 0f);
 
-    int plotFlags = ImPlotFlags.NoTitle | ImPlotFlags.NoLegend | ImPlotFlags.NoMouseText
-        | ImPlotFlags.NoMenus | ImPlotFlags.NoBoxSelect | ImPlotFlags.NoFrame;
+        int plotFlags = ImPlotFlags.NoTitle | ImPlotFlags.NoLegend | ImPlotFlags.NoMouseText
+                | ImPlotFlags.NoMenus | ImPlotFlags.NoBoxSelect | ImPlotFlags.NoFrame;
 
-    // Ensure window view matches current settings
-    rebuildWindowView();
+        rebuildWindowView();
 
-    if (ImPlot.beginPlot("AudioScope", new ImVec2(w, h), plotFlags)) {
-        // Plot last window as a simple line (Y-only). ImPlot will auto-fit axes.
-        ImPlot.plotLine("Audio", windowView, windowView.length);
-        ImPlot.endPlot();
-    }
+        if (ImPlot.beginPlot("AudioScope", new ImVec2(w, h), plotFlags)) {
+            ImPlot.plotLine("Audio", windowView, windowView.length);
+            ImPlot.endPlot();
+        }
 
         ImPlot.popStyleVar(2);
     }
