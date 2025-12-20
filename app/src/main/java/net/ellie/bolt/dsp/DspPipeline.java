@@ -4,8 +4,6 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import net.ellie.bolt.dsp.pipelineSteps.WAVRecorder;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,13 +49,13 @@ public class DspPipeline {
             lock.readLock().unlock();
         }
     }
-    
-    public WAVRecorder getWAVRecorder() {
+
+    public <T extends AbstractPipelineStep> T getFirstPipelineStepOfType(Class<T> clazz) {
         lock.readLock().lock();
         try {
             for (AbstractPipelineStep step : pipelineSteps) {
-                if (step instanceof WAVRecorder) {
-                    return (WAVRecorder) step;
+                if (clazz.isInstance(step)) {
+                    return clazz.cast(step);
                 }
             }
             return null;

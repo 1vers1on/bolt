@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
-import java.util.concurrent.ThreadLocalRandom;
 
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Line;
@@ -22,8 +21,6 @@ import net.ellie.bolt.config.Configuration;
 import net.ellie.bolt.contexts.PortAudioContext;
 import net.ellie.bolt.decoder.DecoderOutputTypes;
 import net.ellie.bolt.decoder.DecoderThread;
-import net.ellie.bolt.decoder.buffer.CircularByteBuffer;
-import net.ellie.bolt.decoder.buffer.CircularCharBuffer;
 import net.ellie.bolt.dsp.DspThread;
 import net.ellie.bolt.dsp.IDemodulator;
 import net.ellie.bolt.dsp.IIRFilterDesigns;
@@ -32,7 +29,6 @@ import net.ellie.bolt.dsp.buffers.CircularFloatBuffer;
 import net.ellie.bolt.dsp.pipelineSteps.Average;
 import net.ellie.bolt.dsp.pipelineSteps.Decimator;
 import net.ellie.bolt.dsp.pipelineSteps.FrequencyShifter;
-import net.ellie.bolt.dsp.pipelineSteps.Goertzel;
 import net.ellie.bolt.dsp.pipelineSteps.Hysteresis;
 import net.ellie.bolt.dsp.pipelineSteps.IIRFilter;
 import net.ellie.bolt.dsp.pipelineSteps.RealWaterfall;
@@ -315,7 +311,7 @@ public class Bolt {
             if (previousFrequency != Configuration.getTargetFrequency()) {
                 previousFrequency = Configuration.getTargetFrequency();
                 if (dspThread != null) {
-                    IDemodulator demod = dspThread.getDemodulator();
+                    IDemodulator demod = dspThread.getPipeline().getDemodulator();
                     if (demod != null) {
                         demod.setFrequencyOffsetHz(
                                 Configuration.getTargetFrequency()
@@ -654,14 +650,14 @@ public class Bolt {
             if (ImGui.collapsingHeader("Recording", ImGuiTreeNodeFlags.DefaultOpen)) {
                 if (ImGui.button("Start WAV Recording")) {
                     if (dspThread != null) {
-                        dspThread.getWAVRecorder().startRecording();
+                        dspThread.getPipeline().getFirstPipelineStepOfType(WAVRecorder.class).startRecording();
                     }
                 }
 
                 if (ImGui.button("Stop WAV Recording")) {
                     if (dspThread != null) {
                         try {
-                            dspThread.getWAVRecorder().stopRecordingAndSave("recordings/");
+                            dspThread.getPipeline().getFirstPipelineStepOfType(WAVRecorder.class).stopRecordingAndSave("recordings/");
                         } catch (IOException e) {
                             logger.error("Failed to save WAV recording: {}", e.getMessage());
                         }

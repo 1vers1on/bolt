@@ -1,13 +1,10 @@
 package net.ellie.bolt.dsp;
 
 import java.util.List;
-import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import net.ellie.bolt.config.Configuration;
 import net.ellie.bolt.dsp.buffers.CircularFloatBuffer;
-import net.ellie.bolt.dsp.pipelineSteps.WAVRecorder;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,15 +78,6 @@ public class DspThread implements Runnable {
         return audioOutputBuffer;
     }
 
-    // Delegate pipeline methods to the DspPipeline class
-    public IDemodulator getDemodulator() {
-        return pipeline.getDemodulator();
-    }
-    
-    public WAVRecorder getWAVRecorder() {
-        return pipeline.getWAVRecorder();
-    }
-
     public void clearPipeline() {
         pipeline.clearPipeline();
     }
@@ -104,5 +92,9 @@ public class DspThread implements Runnable {
 
     public List<AbstractPipelineStep> getPipelineSteps() {
         return pipeline.getPipelineSteps();
+    }
+
+    public DspPipeline getPipeline() {
+        return pipeline;
     }
 }
