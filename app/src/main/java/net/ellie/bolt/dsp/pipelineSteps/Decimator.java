@@ -3,42 +3,46 @@ package net.ellie.bolt.dsp.pipelineSteps;
 import org.apache.commons.math3.util.Pair;
 
 import net.ellie.bolt.dsp.AbstractPipelineStep;
+import net.ellie.bolt.dsp.DspPipeline;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
+import net.ellie.bolt.dsp.attributes.ConstantAttribute;
+import net.ellie.bolt.dsp.attributes.PipelineAttribute;
 
 public class Decimator extends AbstractPipelineStep {
-    private final int decimationFactor;
-    private final double[] taps;
-    private final double[] delay;
+    private PipelineAttribute<Integer> decimationFactor;
+    private PipelineAttribute<double[]> taps;
+    private double[] delay;
     private int delayIdx;
     private int sampleCounter;
 
-    public Decimator(int decimationFactor, double[] taps) {
-        if (decimationFactor < 1) {
-            throw new IllegalArgumentException("Decimation factor must be >= 1");
-        }
-        if (taps == null || taps.length == 0) {
-            throw new IllegalArgumentException("Filter taps must be non-empty");
-        }
+    public Decimator(PipelineAttribute<Integer> decimationFactor, PipelineAttribute<double[]> taps, DspPipeline pipeline) {
         this.decimationFactor = decimationFactor;
-        this.taps = taps.clone();
-        this.delay = new double[taps.length];
+        this.taps = taps;
+        double[] resolvedTaps = this.taps.resolve(pipeline);
+        this.delay = new double[resolvedTaps.length];
         this.delayIdx = 0;
         this.sampleCounter = 0;
+
+        this.taps.addListener(newValue -> {
+            this.delay = new double[newValue.length];
+            this.delayIdx = 0;
+        });
     }
 
-    public Decimator(int decimationFactor, double inputSampleRate) {
-        this(decimationFactor, designAntiAliasingFilter(decimationFactor, inputSampleRate));
+    public Decimator(PipelineAttribute<Integer> decimationFactor, PipelineAttribute<Double> inputSampleRate, DspPipeline pipeline, boolean useSampleRate) {
+        this(
+            decimationFactor,
+            new ConstantAttribute<double[]>(designAntiAliasingFilter(decimationFactor.resolve(pipeline), inputSampleRate.resolve(pipeline))),
+            pipeline
+        );
     }
 
     public static double[] designAntiAliasingFilter(int decimationFactor, double inputSampleRate) {
         double outputSampleRate = inputSampleRate / decimationFactor;
-        
         double cutoffHz = 0.4 * outputSampleRate;
-        
         int filterLength = Math.min(127, Math.max(31, 4 * decimationFactor));
         if (filterLength % 2 == 0) filterLength++;
-        
         return designHammingLowPass(filterLength, inputSampleRate, cutoffHz);
     }
 
@@ -67,11 +71,12 @@ public class Decimator extends AbstractPipelineStep {
     }
 
     @Override
-    public int process(double[] buffer, int length) {
+    public int process(double[] buffer, int length, DspPipeline pipeline) {
         if (buffer == null) return 0;
-        
-        int L = taps.length;
+        int L = taps.resolve(pipeline).length;
+        double[] currentTaps = taps.resolve(pipeline);
         int outIdx = 0;
+        int decim = decimationFactor.resolve(pipeline);
 
         for (int n = 0; n < length; n++) {
             delay[delayIdx] = buffer[n];
@@ -79,13 +84,11 @@ public class Decimator extends AbstractPipelineStep {
             if (sampleCounter == 0) {
                 double acc = 0.0;
                 int di = delayIdx;
-
                 for (int k = 0; k < L; k++) {
-                    acc += delay[di] * taps[k];
+                    acc += delay[di] * currentTaps[k];
                     di--;
                     if (di < 0) di = L - 1;
                 }
-
                 buffer[outIdx++] = acc;
             }
 
@@ -93,11 +96,10 @@ public class Decimator extends AbstractPipelineStep {
             if (delayIdx >= L) delayIdx = 0;
 
             sampleCounter++;
-            if (sampleCounter >= decimationFactor) {
+            if (sampleCounter >= decim) {
                 sampleCounter = 0;
             }
         }
-
         return outIdx;
     }
 
@@ -118,7 +120,7 @@ public class Decimator extends AbstractPipelineStep {
         return PipelineStepType.DECIMATOR;
     }
 
-    public int getDecimationFactor() {
+    public PipelineAttribute<Integer> getDecimationFactor() {
         return decimationFactor;
     }
 }

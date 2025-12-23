@@ -10,30 +10,41 @@ import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
 import net.ellie.bolt.dsp.buffers.CircularFloatBuffer;
 
+import net.ellie.bolt.dsp.attributes.PipelineAttribute;
+
 
 public class RealWaterfall extends AbstractPipelineStep {
     private final CircularFloatBuffer outputBuffer;
-    private final DoubleFFT_1D fft;
-    private final IWindow windowFunction;
-    private final int fftSize;
-    private final double[] work;
-    private final double[] magnitude;
-    private final double[] inputBuffer;
+    private final PipelineAttribute<IWindow> windowFunction;
+    private final PipelineAttribute<Integer> fftSizeAttr;
+    private DoubleFFT_1D fft;
+    private int fftSize;
+    private double[] work;
+    private double[] magnitude;
+    private double[] inputBuffer;
     private int inputBufferFill = 0;
 
-    public RealWaterfall(CircularFloatBuffer outputBuffer, IWindow windowFunction, int fftSize) {
+    public RealWaterfall(CircularFloatBuffer outputBuffer, PipelineAttribute<IWindow> windowFunction, PipelineAttribute<Integer> fftSizeAttr) {
         this.outputBuffer = outputBuffer;
-        this.fft = new DoubleFFT_1D(fftSize);
         this.windowFunction = windowFunction;
-        this.fftSize = fftSize;
-        this.work = new double[fftSize];
-        this.magnitude = new double[fftSize];
-        this.inputBuffer = new double[fftSize];
+        this.fftSizeAttr = fftSizeAttr;
         this.inputBufferFill = 0;
     }
 
     @Override
-    public int process(double[] buffer, int length) {
+    public int process(double[] buffer, int length, net.ellie.bolt.dsp.DspPipeline pipeline) {
+        // Resolve window and fft size from pipeline attributes
+        IWindow win = windowFunction.resolve(pipeline);
+        int fftSize = fftSizeAttr.resolve(pipeline);
+        // Re-init if fftSize changed
+        if (this.fft == null || this.fftSize != fftSize) {
+            this.fftSize = fftSize;
+            this.fft = new DoubleFFT_1D(fftSize);
+            this.work = new double[fftSize];
+            this.magnitude = new double[fftSize];
+            this.inputBuffer = new double[fftSize];
+            this.inputBufferFill = 0;
+        }
         int processed = 0;
         while (processed < length) {
             int toCopy = Math.min(fftSize - inputBufferFill, length - processed);
@@ -43,12 +54,12 @@ public class RealWaterfall extends AbstractPipelineStep {
 
             if (inputBufferFill == fftSize) {
                 System.arraycopy(inputBuffer, 0, work, 0, fftSize);
-                windowFunction.apply(work, fftSize);
+                win.apply(work, fftSize);
                 fft.realForward(work);
 
                 int bins = fftSize;
 
-                double gainCompensation = windowFunction.getGainCompensation(fftSize);
+                double gainCompensation = win.getGainCompensation(fftSize);
                 double dbRange = Configuration.getWaterfallMaxDb() - Configuration.getWaterfallMinDb();
                 double scaleFactor = gainCompensation / fftSize;
                 double scaleFactorDb = 20.0 * Math.log10(scaleFactor);
@@ -92,7 +103,8 @@ public class RealWaterfall extends AbstractPipelineStep {
 
     @Override
     public void reset() {
-        inputBufferFill = 0;
+        this.fft = null;
+        this.inputBufferFill = 0;
     }
 
     @Override

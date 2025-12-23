@@ -1,32 +1,35 @@
 package net.ellie.bolt.dsp.pipelineSteps;
 
 import org.apache.commons.math3.util.Pair;
-
 import net.ellie.bolt.dsp.AbstractPipelineStep;
+import net.ellie.bolt.dsp.DspPipeline;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
+import net.ellie.bolt.dsp.attributes.PipelineAttribute;
 
 public class Hysteresis extends AbstractPipelineStep {
     private int state;
-    private double upperThreshold;
-    private double lowerThreshold;
+    private final PipelineAttribute<Double> upperThreshold;
+    private final PipelineAttribute<Double> lowerThreshold;
 
-    public Hysteresis(double upperThreshold, double lowerThreshold) {
+    public Hysteresis(PipelineAttribute<Double> upperThreshold, PipelineAttribute<Double> lowerThreshold) {
         this.upperThreshold = upperThreshold;
         this.lowerThreshold = lowerThreshold;
         this.state = 0;
     }
 
     @Override
-    public int process(double[] buffer, int length) {
+    public int process(double[] buffer, int length, DspPipeline pipeline) {
+        double upper = upperThreshold.resolve(pipeline);
+        double lower = lowerThreshold.resolve(pipeline);
         for (int i = 0; i < length; i++) {
             double value = buffer[i];
             if (state == 0) {
-                if (value >= upperThreshold) {
+                if (value >= upper) {
                     state = 1;
                 }
             } else {
-                if (value <= lowerThreshold) {
+                if (value <= lower) {
                     state = 0;
                 }
             }
@@ -34,7 +37,6 @@ public class Hysteresis extends AbstractPipelineStep {
         }
         return length;
     }
-    
 
     @Override
     public void reset() {
@@ -49,13 +51,5 @@ public class Hysteresis extends AbstractPipelineStep {
     @Override
     public PipelineStepType getType() {
         return PipelineStepType.FILTER;
-    }
-
-    public void setUpperThreshold(double value) {
-        this.upperThreshold = value;
-    }
-
-    public void setLowerThreshold(double value) {
-        this.lowerThreshold = value;
     }
 }

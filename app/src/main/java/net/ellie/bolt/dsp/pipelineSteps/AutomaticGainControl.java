@@ -1,49 +1,67 @@
+
 package net.ellie.bolt.dsp.pipelineSteps;
 
-import org.apache.commons.math3.util.Pair;
-
-import net.ellie.bolt.config.Configuration;
 import net.ellie.bolt.dsp.AbstractPipelineStep;
+import net.ellie.bolt.dsp.DspPipeline;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
+import net.ellie.bolt.dsp.attributes.PipelineAttribute;
+import org.apache.commons.math3.util.Pair;
 
 public class AutomaticGainControl extends AbstractPipelineStep {
-    private final double targetRmsDb;
-    private final double minGainDb;
-    private final double maxGainDb;
+    private PipelineAttribute<Double> targetRmsDb;
+    private PipelineAttribute<Double> minGainDb;
+    private PipelineAttribute<Double> maxGainDb;
+    private PipelineAttribute<Double> attackTimeSec;
+    private PipelineAttribute<Double> releaseTimeSec;
+    private PipelineAttribute<Double> sampleRate;
 
-    private final int sampleRate;
-    private final double attackCoeff;
-    private final double releaseCoeff;
-
+    private double attackCoeff;
+    private double releaseCoeff;
     private double envelope;
     private double currentGainDb;
 
-    public AutomaticGainControl(double targetRmsDb, double minGainDb, double maxGainDb,
-            double attackTimeSec, double releaseTimeSec, int sampleRate) {
+    public AutomaticGainControl(
+            PipelineAttribute<Double> targetRmsDb,
+            PipelineAttribute<Double> minGainDb,
+            PipelineAttribute<Double> maxGainDb,
+            PipelineAttribute<Double> attackTimeSec,
+            PipelineAttribute<Double> releaseTimeSec,
+            PipelineAttribute<Double> sampleRate,
+            DspPipeline pipeline) {
         this.targetRmsDb = targetRmsDb;
         this.minGainDb = minGainDb;
         this.maxGainDb = maxGainDb;
-        this.sampleRate = sampleRate > 0 ? sampleRate : Configuration.getSampleRate();
+        this.attackTimeSec = attackTimeSec;
+        this.releaseTimeSec = releaseTimeSec;
+        this.sampleRate = sampleRate;
 
-        this.attackCoeff = computeCoeff(attackTimeSec, this.sampleRate);
-        this.releaseCoeff = computeCoeff(releaseTimeSec, this.sampleRate);
+        double fs = this.sampleRate.resolve(pipeline);
+        this.attackCoeff = computeCoeff(this.attackTimeSec.resolve(pipeline), fs);
+        this.releaseCoeff = computeCoeff(this.releaseTimeSec.resolve(pipeline), fs);
+
+        this.attackTimeSec.addListener(newValue -> {
+            this.attackCoeff = computeCoeff(newValue, this.sampleRate.resolve(pipeline));
+        });
+        this.releaseTimeSec.addListener(newValue -> {
+            this.releaseCoeff = computeCoeff(newValue, this.sampleRate.resolve(pipeline));
+        });
+        this.sampleRate.addListener(newValue -> {
+            this.attackCoeff = computeCoeff(this.attackTimeSec.resolve(pipeline), newValue);
+            this.releaseCoeff = computeCoeff(this.releaseTimeSec.resolve(pipeline), newValue);
+        });
 
         this.envelope = 1e-12;
         this.currentGainDb = 0.0;
     }
 
-    public AutomaticGainControl() {
-        this(-20.0, -24.0, 24.0, 0.010, 0.200, Configuration.getSampleRate());
-    }
-
-    private static double computeCoeff(double timeSec, int fs) {
+    private static double computeCoeff(double timeSec, double fs) {
         double tau = Math.max(1e-6, timeSec);
-        return Math.exp(-1.0 / (tau * Math.max(1, fs)));
+        return Math.exp(-1.0 / (tau * Math.max(1.0, fs)));
     }
 
     @Override
-    public int process(double[] buffer, int length) {
+    public int process(double[] buffer, int length, DspPipeline pipeline) {
         if (buffer == null || length <= 0) {
             return 0;
         }
@@ -59,14 +77,17 @@ public class AutomaticGainControl extends AbstractPipelineStep {
         if (Double.isNaN(rms) || Double.isInfinite(rms))
             rms = 1e-12;
 
+        double targetRmsDbVal = targetRmsDb.resolve(pipeline);
+        double minGainDbVal = minGainDb.resolve(pipeline);
+        double maxGainDbVal = maxGainDb.resolve(pipeline);
+
         double coeff = (rms > envelope) ? attackCoeff : releaseCoeff;
         envelope = coeff * envelope + (1.0 - coeff) * rms;
         if (envelope < 1e-12)
             envelope = 1e-12;
 
         double envDb = 20.0 * Math.log10(envelope);
-
-        double desiredGainDb = targetRmsDb - envDb;
+        double desiredGainDb = targetRmsDbVal - envDb;
 
         double maxStepDb = 3.0;
         double deltaDb = desiredGainDb - currentGainDb;
@@ -76,10 +97,10 @@ public class AutomaticGainControl extends AbstractPipelineStep {
             deltaDb = -maxStepDb;
         currentGainDb += deltaDb;
 
-        if (currentGainDb < minGainDb)
-            currentGainDb = minGainDb;
-        if (currentGainDb > maxGainDb)
-            currentGainDb = maxGainDb;
+        if (currentGainDb < minGainDbVal)
+            currentGainDb = minGainDbVal;
+        if (currentGainDb > maxGainDbVal)
+            currentGainDb = maxGainDbVal;
 
         double gainLin = Math.pow(10.0, currentGainDb / 20.0);
         for (int i = 0; i < n; i++) {

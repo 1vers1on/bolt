@@ -1,37 +1,45 @@
+
 package net.ellie.bolt.dsp.pipelineSteps;
 
-import org.apache.commons.math3.util.Pair;
-
 import net.ellie.bolt.dsp.AbstractPipelineStep;
+import net.ellie.bolt.dsp.DspPipeline;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
+import net.ellie.bolt.dsp.attributes.PipelineAttribute;
+import org.apache.commons.math3.util.Pair;
 
 public class FIRFilter extends AbstractPipelineStep {
-    private double[] taps;
+    private PipelineAttribute<double[]> taps;
     private double[] delay;
     private int delayIdx;
 
-    public FIRFilter(double[] taps) {
-        if (taps == null || taps.length == 0) {
+    public FIRFilter(PipelineAttribute<double[]> tapsAttr, DspPipeline pipeline) {
+        this.taps = tapsAttr;
+        double[] resolvedTaps = tapsAttr.resolve(pipeline);
+        if (resolvedTaps == null || resolvedTaps.length == 0) {
             throw new IllegalArgumentException("FIR taps must be non-empty");
         }
-        this.taps = taps.clone();
-        this.delay = new double[taps.length * 2];
+        this.delay = new double[resolvedTaps.length * 2];
         this.delayIdx = 0;
-    }
-
-    public FIRFilter() {
-        this(new double[] { 1.0 });
+        // Listen for taps changes to resize delay buffer
+        this.taps.addListener(newTaps -> {
+            if (newTaps == null || newTaps.length == 0) {
+                throw new IllegalArgumentException("FIR taps must be non-empty");
+            }
+            this.delay = new double[newTaps.length * 2];
+            this.delayIdx = 0;
+        });
     }
 
     @Override
-    public int process(double[] buffer, int length) {
+    public int process(double[] buffer, int length, DspPipeline pipeline) {
         if (buffer == null) return 0;
         if ((length & 1) != 0) {
             throw new IllegalArgumentException("Complex buffer length must be even (interleaved re, im)");
         }
+        double[] currentTaps = taps.resolve(pipeline);
         int complexSamples = length / 2;
-        int L = taps.length;
+        int L = currentTaps.length;
 
         for (int n = 0; n < complexSamples; n++) {
             int writePos = delayIdx * 2;
@@ -44,7 +52,7 @@ public class FIRFilter extends AbstractPipelineStep {
             int di = delayIdx;
             for (int k = 0; k < L; k++) {
                 int pos = di * 2;
-                double tk = taps[k];
+                double tk = currentTaps[k];
                 accRe += delay[pos] * tk;
                 accIm += delay[pos + 1] * tk;
 
@@ -78,12 +86,13 @@ public class FIRFilter extends AbstractPipelineStep {
         return PipelineStepType.FILTER;
     }
 
-    public void setTaps(double[] taps) {
-        if (taps == null || taps.length == 0) {
+    public void setTaps(PipelineAttribute<double[]> tapsAttr, DspPipeline pipeline) {
+        double[] resolvedTaps = tapsAttr.resolve(pipeline);
+        if (resolvedTaps == null || resolvedTaps.length == 0) {
             throw new IllegalArgumentException("FIR taps must be non-empty");
         }
-        this.taps = taps.clone();
-        this.delay = new double[taps.length * 2];
+        this.taps = tapsAttr;
+        this.delay = new double[resolvedTaps.length * 2];
         this.delayIdx = 0;
     }
 }

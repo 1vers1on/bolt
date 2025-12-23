@@ -6,11 +6,13 @@ import java.util.List;
 public class DecoderPipeline<I, O extends DecoderPipelineData> {
     private final List<IDecoderStep<?, ?>> steps = new ArrayList<>();
 
+    @SuppressWarnings("unchecked")
     public <T extends DecoderPipelineData> DecoderPipeline<I, T> addStep(IDecoderStep<O, T> step) {
         steps.add(step);
         return (DecoderPipeline<I, T>) this;
     }
 
+    @SuppressWarnings("unchecked")
     public O execute(I input) {
         Object current = input;
         for (IDecoderStep<?, ?> step : steps) {

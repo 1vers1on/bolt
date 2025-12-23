@@ -1,35 +1,51 @@
 package net.ellie.bolt.dsp.pipelineSteps;
 
-import org.apache.commons.math3.util.Pair;
 
+import org.apache.commons.math3.util.Pair;
 import net.ellie.bolt.dsp.AbstractPipelineStep;
+import net.ellie.bolt.dsp.DspPipeline;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
+import net.ellie.bolt.dsp.attributes.PipelineAttribute;
 
 public class IIRFilter extends AbstractPipelineStep {
-	private double[] b;
-	private double[] a;
-
+	private PipelineAttribute<double[]> bAttr;
+	private PipelineAttribute<double[]> aAttr;
 	private double[] dRe;
 	private double[] dIm;
 
-	public IIRFilter(double[] b, double[] a) {
-		setCoefficients(b, a);
+	public IIRFilter(PipelineAttribute<double[]> bAttr, PipelineAttribute<double[]> aAttr, DspPipeline pipeline) {
+		this.bAttr = bAttr;
+		this.aAttr = aAttr;
+		updateDelayArrays(pipeline);
+
+		this.bAttr.addListener(newValue -> updateDelayArrays(pipeline));
+		this.aAttr.addListener(newValue -> updateDelayArrays(pipeline));
 	}
 
-	public IIRFilter() {
-		this(new double[] { 1.0 }, new double[] { 1.0 });
+	private void updateDelayArrays(DspPipeline pipeline) {
+		double[] b = bAttr.resolve(pipeline);
+		double[] a = aAttr.resolve(pipeline);
+		int M = Math.max(b.length, a.length) - 1;
+		if (M > 0) {
+			dRe = new double[M];
+			dIm = new double[M];
+		} else {
+			dRe = null;
+			dIm = null;
+		}
 	}
 
 	@Override
-	public int process(double[] buffer, int length) {
+	public int process(double[] buffer, int length, DspPipeline pipeline) {
 		if (buffer == null) return 0;
 		if ((length & 1) != 0) {
 			throw new IllegalArgumentException("Complex buffer length must be even (interleaved re, im)");
 		}
 
+		double[] b = bAttr.resolve(pipeline);
+		double[] a = aAttr.resolve(pipeline);
 		final int complexSamples = length / 2;
-
 		final int Nb = b.length;
 		final int Na = a.length;
 		final int M = Math.max(Nb, Na) - 1;
@@ -56,7 +72,6 @@ public class IIRFilter extends AbstractPipelineStep {
 			bp[i] = (i < Nb) ? b[i] : 0.0;
 			ap[i] = (i < Na) ? a[i] : 0.0;
 		}
-
 		ap[0] = 1.0;
 
 		double[] newRe = new double[M];
@@ -84,7 +99,6 @@ public class IIRFilter extends AbstractPipelineStep {
 			System.arraycopy(newRe, 0, dRe, 0, M);
 			System.arraycopy(newIm, 0, dIm, 0, M);
 		}
-
 		return length;
 	}
 
@@ -108,27 +122,11 @@ public class IIRFilter extends AbstractPipelineStep {
 		return PipelineStepType.FILTER;
 	}
 
-	public void setCoefficients(double[] b, double[] a) {
-		if (b == null || b.length == 0) {
-			throw new IllegalArgumentException("IIR numerator (b) must be non-empty");
-		}
-		if (a == null || a.length == 0) {
-			throw new IllegalArgumentException("IIR denominator (a) must be non-empty and include a[0]=1");
-		}
-		if (Math.abs(a[0] - 1.0) > 1e-12) {
-			throw new IllegalArgumentException("IIR requires a[0] == 1. Normalize coefficients before setting.");
-		}
+	public PipelineAttribute<double[]> getBAttribute() {
+		return bAttr;
+	}
 
-		this.b = b.clone();
-		this.a = a.clone();
-
-		int M = Math.max(this.b.length, this.a.length) - 1;
-		if (M > 0) {
-			this.dRe = new double[M];
-			this.dIm = new double[M];
-		} else {
-			this.dRe = null;
-			this.dIm = null;
-		}
+	public PipelineAttribute<double[]> getAAttribute() {
+		return aAttr;
 	}
 }

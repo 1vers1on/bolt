@@ -3,31 +3,37 @@ package net.ellie.bolt.dsp.pipelineSteps;
 import org.apache.commons.math3.util.Pair;
 
 import net.ellie.bolt.dsp.AbstractPipelineStep;
+import net.ellie.bolt.dsp.DspPipeline;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
+import net.ellie.bolt.dsp.attributes.PipelineAttribute;
 
 public class RealFIRFilter extends AbstractPipelineStep {
+    private PipelineAttribute<double[]> tapsAttr;
     private double[] taps;
     private double[] delay;
     private int delayIdx;
 
-    public RealFIRFilter(double[] taps) {
-        if (taps == null || taps.length == 0) {
-            throw new IllegalArgumentException("FIR taps must be non-empty");
-        }
-        this.taps = taps.clone();
-        this.delay = new double[taps.length];
+    public RealFIRFilter(PipelineAttribute<double[]> tapsAttr, DspPipeline pipeline) {
+        this.tapsAttr = tapsAttr;
+        this.taps = tapsAttr.resolve(pipeline).clone();
+        this.delay = new double[this.taps.length];
         this.delayIdx = 0;
+        this.tapsAttr.addListener(newTaps -> {
+            if (newTaps == null || newTaps.length == 0) {
+                throw new IllegalArgumentException("FIR taps must be non-empty");
+            }
+            this.taps = newTaps.clone();
+            this.delay = new double[newTaps.length];
+            this.delayIdx = 0;
+        });
     }
-
-    public RealFIRFilter() {
-        this(new double[] { 1.0 });
-    }
-
+    
     @Override
-    public int process(double[] buffer, int length) {
+    public int process(double[] buffer, int length, DspPipeline pipeline) {
         if (buffer == null) return 0;
-        int L = taps.length;
+        double[] currentTaps = tapsAttr.resolve(pipeline);
+        int L = currentTaps.length;
 
         for (int n = 0; n < length; n++) {
             delay[delayIdx] = buffer[n];
@@ -36,7 +42,7 @@ public class RealFIRFilter extends AbstractPipelineStep {
             int di = delayIdx;
 
             for (int k = 0; k < L; k++) {
-                acc += delay[di] * taps[k];
+                acc += delay[di] * currentTaps[k];
                 di--;
                 if (di < 0) di = L - 1;
             }
@@ -66,12 +72,13 @@ public class RealFIRFilter extends AbstractPipelineStep {
         return PipelineStepType.FILTER;
     }
 
-    public void setTaps(double[] taps) {
-        if (taps == null || taps.length == 0) {
+    public void setTaps(PipelineAttribute<double[]> tapsAttr, DspPipeline pipeline) {
+        if (tapsAttr == null || tapsAttr.resolve(pipeline).length == 0) {
             throw new IllegalArgumentException("FIR taps must be non-empty");
         }
-        this.taps = taps.clone();
-        this.delay = new double[taps.length];
+        this.tapsAttr = tapsAttr;
+        this.taps = tapsAttr.resolve(pipeline).clone();
+        this.delay = new double[this.taps.length];
         this.delayIdx = 0;
     }
 }

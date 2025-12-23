@@ -1,37 +1,38 @@
 package net.ellie.bolt.dsp.pipelineSteps.demodulators;
 
-import net.ellie.bolt.dsp.IDemodulator;
 import net.ellie.bolt.dsp.AbstractPipelineStep;
+import net.ellie.bolt.dsp.DspPipeline;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
+import net.ellie.bolt.dsp.attributes.PipelineAttribute;
 
 import org.apache.commons.math3.util.Pair;
 
-public class FmDemodulator extends AbstractPipelineStep implements IDemodulator {
+public class FmDemodulator extends AbstractPipelineStep {
 
-    private final int sampleRate;
-    private double frequencyOffsetHz = 0.0;
+    private PipelineAttribute<Integer> sampleRate;
+    private PipelineAttribute<Double> frequencyOffsetHz;
     private double phase = 0.0;
     private double twoPi = 2.0 * Math.PI;
     private double prevRe = 0.0;
     private double prevIm = 0.0;
     private boolean hasPrev = false;
 
-    public FmDemodulator(int sampleRate, double frequencyOffsetHz) {
+    public FmDemodulator(PipelineAttribute<Integer> sampleRate, PipelineAttribute<Double> frequencyOffsetHz) {
         this.sampleRate = sampleRate;
         this.frequencyOffsetHz = frequencyOffsetHz;
         this.phase = 0.0;
     }
 
     @Override
-    public int process(double[] buffer, int length) {
+    public int process(double[] buffer, int length, DspPipeline pipeline) {
         int outIndex = 0;
 
         for (int i = 0; i + 1 < length; i += 2) {
             double re = buffer[i];
             double im = buffer[i + 1];
 
-            double phaseInc = twoPi * frequencyOffsetHz / sampleRate;
+            double phaseInc = twoPi * frequencyOffsetHz.resolve(pipeline) / sampleRate.resolve(pipeline);
             phase += phaseInc;
             if (phase > Math.PI) {
                 phase -= twoPi;
@@ -80,10 +81,5 @@ public class FmDemodulator extends AbstractPipelineStep implements IDemodulator 
     @Override
     public PipelineStepType getType() {
         return PipelineStepType.DEMODULATOR;
-    }
-
-    @Override
-    public void setFrequencyOffsetHz(double offsetHz) {
-        this.frequencyOffsetHz = offsetHz;
     }
 }

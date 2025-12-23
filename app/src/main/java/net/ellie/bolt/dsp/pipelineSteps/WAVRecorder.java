@@ -14,21 +14,23 @@ import javax.sound.sampled.AudioSystem;
 import org.apache.commons.math3.util.Pair;
 
 import net.ellie.bolt.dsp.AbstractPipelineStep;
+import net.ellie.bolt.dsp.DspPipeline;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
+import net.ellie.bolt.dsp.attributes.PipelineAttribute;
 
 public class WAVRecorder extends AbstractPipelineStep {
     private final List<Float> recordingBuffer;
-    private final int sampleRate;
+    private final PipelineAttribute<Double> sampleRate;
     private volatile boolean isRecording = false;
 
-    public WAVRecorder(int sampleRate) {
+    public WAVRecorder(PipelineAttribute<Double> sampleRate) {
         this.sampleRate = sampleRate;
         this.recordingBuffer = new ArrayList<>();
     }
 
     @Override
-    public int process(double[] buffer, int length) {
+    public int process(double[] buffer, int length, DspPipeline pipeline) {
         if (isRecording) {
             for (int i = 0; i < length; i++) {
                 recordingBuffer.add((float)buffer[i]);
@@ -58,7 +60,7 @@ public class WAVRecorder extends AbstractPipelineStep {
         isRecording = true;
     }
 
-    public void stopRecordingAndSave(String folderPath) throws IOException {
+    public void stopRecordingAndSave(String folderPath, DspPipeline pipeline) throws IOException {
         isRecording = false;
 
         float[] samples = new float[recordingBuffer.size()];
@@ -68,7 +70,8 @@ public class WAVRecorder extends AbstractPipelineStep {
 
         byte[] pcmData = floatToPCM16(samples);
 
-        AudioFormat format = new AudioFormat(sampleRate, 16, 1, true, false);
+        int rate = sampleRate.resolve(pipeline).intValue();
+        AudioFormat format = new AudioFormat(rate, 16, 1, true, false);
 
         AudioInputStream audioInputStream = new AudioInputStream(
                 new ByteArrayInputStream(pcmData),

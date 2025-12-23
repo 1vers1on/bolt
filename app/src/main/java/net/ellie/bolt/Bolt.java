@@ -22,9 +22,10 @@ import net.ellie.bolt.contexts.PortAudioContext;
 import net.ellie.bolt.decoder.DecoderOutputTypes;
 import net.ellie.bolt.decoder.DecoderThread;
 import net.ellie.bolt.dsp.DspThread;
-import net.ellie.bolt.dsp.IDemodulator;
 import net.ellie.bolt.dsp.IIRFilterDesigns;
+import net.ellie.bolt.dsp.IWindow;
 import net.ellie.bolt.dsp.NumberType;
+import net.ellie.bolt.dsp.attributes.ConstantAttribute;
 import net.ellie.bolt.dsp.buffers.CircularFloatBuffer;
 import net.ellie.bolt.dsp.pipelineSteps.Average;
 import net.ellie.bolt.dsp.pipelineSteps.Decimator;
@@ -298,33 +299,28 @@ public class Bolt {
             }
 
             if (pipelineRunning) {
-                if (dspThread.getPipelineSteps().get(0) instanceof FrequencyShifter fs) {
-                    double freq = Configuration.getTargetFrequency();
-                    fs.setOffsetHz(freq - Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency());
-                }
                 waterfallBuffer.readNonBlocking(fftData, 0, fftData.length);
 
                 waterfall.update(fftData);
                 panadapter.update(fftData);
             }
 
-            if (previousFrequency != Configuration.getTargetFrequency()) {
-                previousFrequency = Configuration.getTargetFrequency();
-                if (dspThread != null) {
-                    IDemodulator demod = dspThread.getPipeline().getDemodulator();
-                    if (demod != null) {
-                        demod.setFrequencyOffsetHz(
-                                Configuration.getTargetFrequency()
-                                        - Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency());
-                        System.out
-                                .println(
-                                        "Set frequency offset to "
-                                                + (Configuration.getTargetFrequency()
-                                                        - Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency())
-                                                + " Hz");
-                    }
-                }
-            }
+            // if (previousFrequency != Configuration.getTargetFrequency()) {
+            //     previousFrequency = Configuration.getTargetFrequency();
+            //     if (dspThread != null) {
+            //         if (demod != null) {
+            //             demod.setFrequencyOffsetHz(
+            //                     Configuration.getTargetFrequency()
+            //                             - Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency());
+            //             System.out
+            //                     .println(
+            //                             "Set frequency offset to "
+            //                                     + (Configuration.getTargetFrequency()
+            //                                             - Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency())
+            //                                     + " Hz");
+            //         }
+            //     }
+            // }
 
             imGuiGlfw.newFrame();
             imGuiGl3.newFrame();
@@ -387,59 +383,73 @@ public class Bolt {
                 dspThread.clearPipeline();
 
                 if (inputSource.isComplex()) {
-                    int inputSampleRate = inputSource.getSampleRate();
-                    int outputSampleRate = Configuration.getSampleRate();
-                    int decimationFactor = inputSampleRate / outputSampleRate;
+            int inputSampleRate = inputSource.getSampleRate();
+            int outputSampleRate = Configuration.getSampleRate();
+            int decimationFactor = inputSampleRate / outputSampleRate;
 
-                    dspThread.addPipelineStep(new net.ellie.bolt.dsp.pipelineSteps.Waterfall(
-                            waterfallBuffer,
-                            new HannWindow(),
-                            Configuration.getFftSize()));
+            dspThread.addPipelineStep(new net.ellie.bolt.dsp.pipelineSteps.Waterfall(
+                waterfallBuffer,
+                new ConstantAttribute<IWindow>(new HannWindow()),
+                new ConstantAttribute<Integer>(Configuration.getFftSize())));
 
-                    double[][] iir = IIRFilterDesigns.butterworthLowpass2(
-                            inputSampleRate,
-                            3000.0);
+            double[][] iir = IIRFilterDesigns.butterworthLowpass2(
+                inputSampleRate,
+                3000.0);
 
-                    dspThread.addPipelineStep(new IIRFilter(iir[0], iir[1]));
+            dspThread.addPipelineStep(new IIRFilter(
+                new ConstantAttribute<double[]>(iir[0]),
+                new ConstantAttribute<double[]>(iir[1]), dspThread.getPipeline()));
 
-                    dspThread.addPipelineStep(
-                            new SSBDemodulator(true, inputSampleRate, Configuration.getTargetFrequency()
-                                    - Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency()));
+            dspThread.addPipelineStep(
+                new SSBDemodulator(
+                new ConstantAttribute<Boolean>(true),
+                new ConstantAttribute<Double>((double) inputSampleRate),
+                new ConstantAttribute<Double>((double) (Configuration.getTargetFrequency()
+                    - Configuration.getRtlSdrConfig().getRtlSdrCenterFrequency())), dspThread.getPipeline()));
 
-                    if (decimationFactor > 1) {
-                        dspThread.addPipelineStep(new Decimator(decimationFactor, inputSampleRate));
-                    }
+            if (decimationFactor > 1) {
+            dspThread.addPipelineStep(new Decimator(
+                new ConstantAttribute<Integer>(decimationFactor),
+                new ConstantAttribute<Double>((double)inputSampleRate), dspThread.getPipeline(), true));
+            }
 
-                    dspThread.addPipelineStep(new WAVRecorder(Configuration.getSampleRate()));
+            dspThread.addPipelineStep(new WAVRecorder(
+            new ConstantAttribute<Double>((double) Configuration.getSampleRate())));
 
+            dspThread.buildPipeline();
 
-                    dspThread.buildPipeline();
-
-                    outputThread = new AudioConsumerThread(dspThread.getAudioOutputBuffer());
-                    inputThread.start();
-                    dspThread.start();
-                    outputThread.start();
+            outputThread = new AudioConsumerThread(dspThread.getAudioOutputBuffer());
+            inputThread.start();
+            dspThread.start();
+            outputThread.start();
                 } else {
                     dspThread.addPipelineStep(new RealWaterfall(
                             waterfallBuffer,
-                            new HannWindow(),
-                            Configuration.getFftSize()));
+                            new ConstantAttribute<IWindow>(new HannWindow()),
+                            new ConstantAttribute<Integer>(Configuration.getFftSize())));
 
-                    dspThread.addPipelineStep(new WAVRecorder(Configuration.getSampleRate()));
+                    dspThread.addPipelineStep(new WAVRecorder(
+                        new ConstantAttribute<Double>((double) Configuration.getSampleRate())));
 
                     // dspThread.addPipelineStep(new Goertzel(
-                    //         400,
-                    //         inputSource.getSampleRate(),
-                    //         512));
+                    //         new ConstantAttribute<Integer>(400),
+                    //         new ConstantAttribute<Integer>(inputSource.getSampleRate()),
+                    //         new ConstantAttribute<Integer>(512)));
 
-                    // dspThread.addPipelineStep(new Decimator(8, inputSource.getSampleRate()));
+                    // dspThread.addPipelineStep(new Decimator(
+                    //     new ConstantAttribute<Integer>(8),
+                    //     new ConstantAttribute<Integer>(inputSource.getSampleRate())));
 
-                    dspThread.addPipelineStep(new Threshold(0.3f));
+                    dspThread.addPipelineStep(new Threshold(
+                        new ConstantAttribute<Double>(0.3)));
 
-                    dspThread.addPipelineStep(new Average(128));
+                    dspThread.addPipelineStep(new Average(
+                        new ConstantAttribute<Integer>(128),
+                        dspThread.getPipeline()));
 
-                    dspThread.addPipelineStep(new Hysteresis(0.1f, 0.05f));
-
+                    dspThread.addPipelineStep(new Hysteresis(
+                        new ConstantAttribute<Double>(0.1),
+                        new ConstantAttribute<Double>(0.05)));
 
                     dspThread.buildPipeline();
 
@@ -657,7 +667,7 @@ public class Bolt {
                 if (ImGui.button("Stop WAV Recording")) {
                     if (dspThread != null) {
                         try {
-                            dspThread.getPipeline().getFirstPipelineStepOfType(WAVRecorder.class).stopRecordingAndSave("recordings/");
+                            dspThread.getPipeline().getFirstPipelineStepOfType(WAVRecorder.class).stopRecordingAndSave("recordings/", dspThread.getPipeline());
                         } catch (IOException e) {
                             logger.error("Failed to save WAV recording: {}", e.getMessage());
                         }

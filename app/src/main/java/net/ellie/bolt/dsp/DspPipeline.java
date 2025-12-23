@@ -1,7 +1,9 @@
 package net.ellie.bolt.dsp;
 
 import java.util.List;
+import java.util.Map;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.slf4j.Logger;
@@ -14,6 +16,8 @@ public class DspPipeline {
     private final NumberType inputType;
     private boolean pipelineValid = false;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+
+    private final Map<String, Object> namedAttributes = new HashMap<>();
 
     public DspPipeline(NumberType inputType) {
         this.inputType = inputType;
@@ -28,23 +32,9 @@ public class DspPipeline {
             
             int pipelineBufLength = length;
             for (AbstractPipelineStep step : pipelineSteps) {
-                pipelineBufLength = step.process(buffer, pipelineBufLength);
+                pipelineBufLength = step.process(buffer, pipelineBufLength, this);
             }
             return pipelineBufLength;
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    public IDemodulator getDemodulator() {
-        lock.readLock().lock();
-        try {
-            for (AbstractPipelineStep step : pipelineSteps) {
-                if (step instanceof IDemodulator) {
-                    return (IDemodulator) step;
-                }
-            }
-            return null;
         } finally {
             lock.readLock().unlock();
         }

@@ -1,36 +1,50 @@
+
 package net.ellie.bolt.dsp.pipelineSteps;
 
 import org.apache.commons.math3.util.Pair;
 
 import net.ellie.bolt.dsp.AbstractPipelineStep;
+import net.ellie.bolt.dsp.DspPipeline;
 import net.ellie.bolt.dsp.NumberType;
 import net.ellie.bolt.dsp.PipelineStepType;
+import net.ellie.bolt.dsp.attributes.PipelineAttribute;
 
 public class FrequencyShifter extends AbstractPipelineStep {
-    private final double sampleRate;
-    private double phase = 0.0;
-    private double phaseInc = 0.0;
+    private PipelineAttribute<Double> sampleRate;
+    private PipelineAttribute<Double> offsetHz;
 
-    private double cosPhase = 1.0;
-    private double sinPhase = 0.0;
-    private double cosInc = 1.0;
-    private double sinInc = 0.0;
+    private double phase;
+    private double phaseInc;
+    private double cosPhase;
+    private double sinPhase;
+    private double cosInc;
+    private double sinInc;
 
-    public FrequencyShifter(double sampleRate) {
+    public FrequencyShifter(PipelineAttribute<Double> sampleRate, PipelineAttribute<Double> offsetHz, DspPipeline pipeline) {
         this.sampleRate = sampleRate;
-        setOffsetHz(0.0);
+        this.offsetHz = offsetHz;
+        this.phase = 0.0;
+        updatePhaseInc(pipeline);
+        this.offsetHz.addListener(newValue -> {
+            updatePhaseInc(pipeline);
+        });
+        this.sampleRate.addListener(newValue -> {
+            updatePhaseInc(pipeline);
+        });
+        this.cosPhase = 1.0;
+        this.sinPhase = 0.0;
     }
 
-    public void setOffsetHz(double offsetHz) {
-        this.phaseInc = 2.0 * Math.PI * offsetHz / sampleRate;
-        cosInc = Math.cos(phaseInc);
-        sinInc = Math.sin(phaseInc);
-        cosPhase = Math.cos(phase);
-        sinPhase = Math.sin(phase);
+    private void updatePhaseInc(DspPipeline pipeline) {
+        this.phaseInc = 2.0 * Math.PI * this.offsetHz.resolve(pipeline) / this.sampleRate.resolve(pipeline);
+        this.cosInc = Math.cos(phaseInc);
+        this.sinInc = Math.sin(phaseInc);
+        this.cosPhase = Math.cos(phase);
+        this.sinPhase = Math.sin(phase);
     }
 
     @Override
-    public int process(double[] buffer, int length) {
+    public int process(double[] buffer, int length, DspPipeline pipeline) {
         int safeLength = (length & ~1);
         int renormEvery = 16;
         int count = 0;
