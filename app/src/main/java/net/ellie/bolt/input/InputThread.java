@@ -32,6 +32,7 @@ public class InputThread implements Runnable {
         this.sampleRate = sampleRate;
 
         int bufferSize = Configuration.getFftSize() * 32 * complexFactor; // TODO: figure out the correct size
+        logger.info("Creating InputThread buffer of size {} samples for source {}", bufferSize, inputSource.getName());
         this.buffer = new CircularFloatBuffer(bufferSize);
 
         this.readBuffer = new float[4 * 16384 * complexFactor]; // TODO: maybe increase the size
@@ -63,11 +64,11 @@ public class InputThread implements Runnable {
                         }
                     }
                 }
-
+                
                 int samplesRead = inputSource.read(readBuffer, 0, readBuffer.length);
                 if (samplesRead > 0) {
+                    logger.debug("Read {} samples from {}", samplesRead, inputSource.getName());
                     buffer.write(readBuffer, 0, samplesRead);
-
                     double secondsForChunk = (double) samplesRead / (double) (sampleRate * complexFactor);
                     long nanosForChunk = (long) (secondsForChunk * 1_000_000_000L);
                     nextReadDeadlineNanos = System.nanoTime() + nanosForChunk;

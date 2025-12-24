@@ -18,7 +18,6 @@ public class Configuration {
     private int bandwidthStartOffset = 0;
     private int bandwidthEndOffset = 3000;
 
-    // TODO: pass an instance of Configuration to these configs to make saving better instead of static access
     private RTLSDRConfig rtlSdrConfig = new RTLSDRConfig();
     private DummyInputConfig dummyConfig = new DummyInputConfig(2048000);
     private PortAudioInputConfig portAudioConfig = new PortAudioInputConfig(0, 48000, 2, 128);

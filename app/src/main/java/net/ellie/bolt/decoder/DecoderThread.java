@@ -16,6 +16,7 @@ public class DecoderThread implements Runnable {
     public DecoderPipeline<float[], ? extends DecoderPipelineData> pipeline;
 
     private final CircularFloatBuffer audioInputBuffer;
+    @SuppressWarnings("unused")
     private final int sampleRate;
 
     private CircularByteBuffer rawByteOutputBuffer;

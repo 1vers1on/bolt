@@ -38,31 +38,41 @@ public class DspThread implements Runnable {
         running.set(true);
 
         double[] pipelineBuf = new double[inputBufferSize];
+        int sampleRate = Configuration.getInputSampleRate();
 
         while (running.get()) {
-            try {
-                inputBuffer.read(pipelineBuf, 0, inputBufferSize);
-            } catch (InterruptedException e) {
-                running.set(false);
-                logger.error("DspThread interrupted during read", e);
-                break;
-            }
-
-            // Process through pipeline
-            int pipelineBufLength = pipeline.process(pipelineBuf, pipelineBuf.length);
-            
-            // Output to audio buffer if the final output is real
-            if (pipeline.isValid() && pipeline.getFinalOutputType() == NumberType.REAL) {
-                float[] audioBuf = new float[pipelineBufLength];
-                for (int i = 0; i < pipelineBufLength; i++) {
-                    audioBuf[i] = (float) pipelineBuf[i];
+            int readCount = inputBuffer.readNonBlocking(pipelineBuf, 0, inputBufferSize);
+            if (readCount > 0) {
+                int pipelineBufLength = pipeline.process(pipelineBuf, readCount);
+                
+                if (pipeline.isValid() && pipeline.getFinalOutputType() == NumberType.REAL) {
+                    float[] audioBuf = new float[pipelineBufLength];
+                    for (int i = 0; i < pipelineBufLength; i++) {
+                        audioBuf[i] = (float) pipelineBuf[i];
+                    }
+                    audioOutputBuffer.writeNonBlocking(audioBuf, 0, pipelineBufLength);
                 }
-                audioOutputBuffer.writeNonBlocking(audioBuf, 0, pipelineBufLength);
+
+                long sleepTimeMs = (long) ((readCount / (double) sampleRate) * 1000);
+                try {
+                    Thread.sleep(sleepTimeMs);
+                } catch (InterruptedException e) {
+                    running.set(false);
+                    logger.error("DspThread interrupted during sleep", e);
+                    break;
+                }
+            } else {
+                // No data available, sleep a short time to avoid busy waiting
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
+                    running.set(false);
+                    logger.error("DspThread interrupted during sleep", e);
+                    break;
+                }
             }
         }
-    }
-
-    public void stop() {
+    }    public void stop() {
         running.set(false);
         if (localDspThread != null) {
             try {

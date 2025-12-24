@@ -17,6 +17,7 @@ public class DspPipeline {
     private boolean pipelineValid = false;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
+    @SuppressWarnings("unused") // TODO: add reference attributes
     private final Map<String, Object> namedAttributes = new HashMap<>();
 
     public DspPipeline(NumberType inputType) {
