@@ -25,6 +25,7 @@ public class Configuration {
 
     private int audioBufferSize = 8192;
     private int sampleRate = 48000;
+    private boolean inputThrottlingEnabled = false;
 
     static ConfigurationSaver saver = ConfigurationSaver.create();
     public static Configuration INSTANCE = saver.load();
@@ -196,6 +197,15 @@ public class Configuration {
 
     public static void setSampleRate(int newSampleRate) {
         INSTANCE.sampleRate = newSampleRate;
+        saver.save(INSTANCE);
+    }
+
+    public static boolean isInputThrottlingEnabled() {
+        return INSTANCE.inputThrottlingEnabled;
+    }
+
+    public static void setInputThrottlingEnabled(boolean enabled) {
+        INSTANCE.inputThrottlingEnabled = enabled;
         saver.save(INSTANCE);
     }
 }

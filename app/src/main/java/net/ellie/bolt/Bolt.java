@@ -377,7 +377,7 @@ public class Bolt {
                 logger.info("Starting pipeline");
                 inputSource = InputSourceFactory.createInputSource();
                 inputThread = new InputThread(inputSource, Configuration.getSampleRate());
-                dspThread = new DspThread(inputThread.getBuffer(), 8192*2,
+                dspThread = new DspThread(inputThread.getBuffer(), 4096,
                         inputSource.isComplex() ? NumberType.COMPLEX : NumberType.REAL);
                 dspThread.clearPipeline();
 

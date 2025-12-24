@@ -52,7 +52,7 @@ public class InputThread implements Runnable {
             while (running.get()) {
                 long now = System.nanoTime();
                 long waitNanos = nextReadDeadlineNanos - now;
-                if (waitNanos > 0) {
+                if (Configuration.isInputThrottlingEnabled() && waitNanos > 0) {
                     long waitMillis = waitNanos / 1_000_000L;
                     int waitExtraNanos = (int)(waitNanos % 1_000_000L);
                     if (waitMillis > 0 || waitExtraNanos > 0) {
@@ -69,17 +69,25 @@ public class InputThread implements Runnable {
                 if (samplesRead > 0) {
                     logger.debug("Read {} samples from {}", samplesRead, inputSource.getName());
                     buffer.write(readBuffer, 0, samplesRead);
-                    double secondsForChunk = (double) samplesRead / (double) (sampleRate * complexFactor);
-                    long nanosForChunk = (long) (secondsForChunk * 1_000_000_000L);
-                    nextReadDeadlineNanos = System.nanoTime() + nanosForChunk;
-                } else {
-                    try {
-                        Thread.sleep(1);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        break;
+                    if (Configuration.isInputThrottlingEnabled()) {
+                        double secondsForChunk = (double) samplesRead / (double) (sampleRate * complexFactor);
+                        long nanosForChunk = (long) (secondsForChunk * 1_000_000_000L);
+                        nextReadDeadlineNanos = System.nanoTime() + nanosForChunk;
+                    } else {
+                        nextReadDeadlineNanos = System.nanoTime();
                     }
-                    nextReadDeadlineNanos = System.nanoTime() + 1_000_000L;
+                } else {
+                    if (Configuration.isInputThrottlingEnabled()) {
+                        try {
+                            Thread.sleep(1);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                        nextReadDeadlineNanos = System.nanoTime() + 1_000_000L;
+                    } else {
+                        nextReadDeadlineNanos = System.nanoTime();
+                    }
                 }
             }
         } catch (InterruptedException e) {
